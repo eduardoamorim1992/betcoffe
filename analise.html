@@ -109,6 +109,16 @@ function App(){
     <div style={{background:C.bg,minHeight:"100vh",fontFamily:BODY,color:C.txt}}>
       <style>{CSS}</style>
       <div className="wrap">
+        <a href="index.html" style={{
+            display:"inline-flex", alignItems:"center", gap:6, textDecoration:"none",
+            color:C.txt2, fontFamily:BODY, fontSize:12.5, border:`1px solid ${C.line}`,
+            background:C.bg2, borderRadius:8, padding:"5px 11px", marginBottom:14,
+            transition:"color .15s, border-color .15s",
+          }}
+          onMouseEnter={(e)=>{ e.currentTarget.style.color=C.gold; e.currentTarget.style.borderColor=C.gold; }}
+          onMouseLeave={(e)=>{ e.currentTarget.style.color=C.txt2; e.currentTarget.style.borderColor=C.line; }}>
+          ← Painel
+        </a>
         <header className="head">
           <div className="brand"><span className="logo">◆</span> ANÁLISE
             <span className="brand-sub">modelo de Poisson</span></div>
