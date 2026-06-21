@@ -36,9 +36,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def load_key_from_file():
+    # primeira linha que nao for vazia nem comentario (#)
     try:
         with open(os.path.join(HERE, "apikey.txt"), "r", encoding="utf-8") as f:
-            return f.read().strip()
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    return line
+        return ""
     except OSError:
         return ""
 
