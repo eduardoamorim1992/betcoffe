@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BANCA · gestão de apostas</title>
+<style>
+  html, body { margin: 0; background: #0C0F14; }
+  #root { min-height: 100vh; }
+</style>
+<!-- React + Recharts via CDN (necessário internet só no 1º carregamento) -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo } = React;
+const {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid, Cell, ReferenceLine,
+} = Recharts;
+
+/* ───────────── tokens ───────────── */
+const C = {
+  bg: "#0C0F14", bg2: "#10141B", card: "#151A22", cardHi: "#1B212B",
+  line: "#222A35", line2: "#2D3744",
+  txt: "#E9EDF3", txt2: "#9AA5B6", txt3: "#67738A",
+  green: "#1BD17C", greenDim: "#0F8C56",
+  red: "#F0455B", redDim: "#A8324A",
+  gold: "#E7A93C", goldDim: "#8E6C2A",
+};
+const MONO = "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace";
+const DISP = "'Space Grotesk', ui-sans-serif, system-ui, sans-serif";
+const BODY = "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif";
+const ESPORTES = ["Futebol", "Basquete", "Tênis", "Vôlei", "MMA", "eSports", "Fut. Americano", "Outro"];
+
+/* ───────────── storage (localStorage) ───────────── */
+const LS = {
+  load(key, fb) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fb; } catch (e) { return fb; } },
+  save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} },
+};
+
+/* ───────────── helpers ───────────── */
+const fmtBRL = (n) =>
+  (n < 0 ? "-" : "") + Math.abs(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(1) + "%";
+const fmtNum = (n) => n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+function lucroDe(b) {
+  if (b.status === "green") return b.stake * (b.odd - 1);
+  if (b.status === "red") return -b.stake;
+  return 0;
+}
+
+const EXEMPLO = () => {
+  const base = [
+    ["Futebol", "Flamengo x Palmeiras", "Mais de 2.5 gols", "Bet365", 1.85, 50, "green", -18],
+    ["Futebol", "Real Madrid x Barcelona", "Ambas marcam", "Betano", 1.72, 50, "red", -16],
+    ["Basquete", "Lakers x Celtics", "Lakers +5.5", "Betano", 1.90, 40, "green", -15],
+    ["Tênis", "Alcaraz x Sinner", "Alcaraz vence", "Bet365", 2.10, 30, "green", -13],
+    ["Futebol", "Corinthians x São Paulo", "Resultado: Empate", "Superbet", 3.20, 30, "red", -11],
+    ["MMA", "Pereira x Ankalaev", "Pereira por KO", "Betano", 2.75, 25, "red", -9],
+    ["Futebol", "Man City x Liverpool", "Menos de 3.5 gols", "Bet365", 1.65, 60, "green", -7],
+    ["eSports", "FURIA x LOUD", "FURIA vence mapa 1", "Betano", 1.95, 30, "green", -5],
+    ["Basquete", "Warriors x Nuggets", "Mais de 220.5 pts", "Superbet", 1.88, 40, "red", -3],
+    ["Futebol", "Inter x Grêmio", "Inter vence", "Bet365", 2.30, 35, "green", -1],
+    ["Tênis", "Sabalenka x Gauff", "Gauff +3.5 games", "Betano", 1.80, 30, "pendente", 0],
+    ["Futebol", "Bayern x Dortmund", "Mais de 2.5 gols", "Betano", 1.70, 50, "pendente", 0],
+  ];
+  return base.map(([esporte, evento, mercado, casa, odd, stake, status, dOff]) => ({
+    id: uid(), date: new Date(Date.now() + dOff * 86400000).toISOString().slice(0, 10),
+    esporte, evento, mercado, casa, odd, stake, status,
+  }));
+};
+
+/* ───────────── app ───────────── */
+function App() {
+  const [bets, setBets] = useState(() => LS.load("banca:bets", []));
+  const [config, setConfig] = useState(() => LS.load("banca:config", { bancaInicial: 1000, valorUnidade: 25 }));
+  const [breakdownBy, setBreakdownBy] = useState("esporte");
+  const [filtro, setFiltro] = useState("todas");
+
+  const saveBets = (next) => { setBets(next); LS.save("banca:bets", next); };
+  const saveConfig = (next) => { setConfig(next); LS.save("banca:config", next); };
+
+  const addBet = (b) => saveBets([{ ...b, id: uid() }, ...bets]);
+  const setStatus = (id, status) => saveBets(bets.map((b) => (b.id === id ? { ...b, status } : b)));
+  const delBet = (id) => saveBets(bets.filter((b) => b.id !== id));
+  const carregarExemplo = () => saveBets(EXEMPLO());
+  const limparTudo = () => { if (confirm("Apagar todas as apostas? Esta ação não pode ser desfeita.")) saveBets([]); };
+
+  const stats = useMemo(() => {
+    const resolvidas = bets.filter((b) => b.status === "green" || b.status === "red");
+    const lucroTotal = resolvidas.reduce((s, b) => s + lucroDe(b), 0);
+    const turnover = resolvidas.reduce((s, b) => s + b.stake, 0);
+    const greens = bets.filter((b) => b.status === "green").length;
+    const reds = bets.filter((b) => b.status === "red").length;
+    const pendentes = bets.filter((b) => b.status === "pendente").length;
+    const taxa = greens + reds > 0 ? (greens / (greens + reds)) * 100 : 0;
+    const yield_ = turnover > 0 ? (lucroTotal / turnover) * 100 : 0;
+    const roi = config.bancaInicial > 0 ? (lucroTotal / config.bancaInicial) * 100 : 0;
+    const bancaAtual = config.bancaInicial + lucroTotal;
+    const oddMedia = resolvidas.length ? resolvidas.reduce((s, b) => s + b.odd, 0) / resolvidas.length : 0;
+    const ord = [...resolvidas].sort((a, b) => (a.date < b.date ? 1 : -1));
+    let streak = 0, streakTipo = null;
+    for (const b of ord) {
+      if (streakTipo === null) { streakTipo = b.status; streak = 1; }
+      else if (b.status === streakTipo) streak++;
+      else break;
+    }
+    return { resolvidas, lucroTotal, turnover, greens, reds, pendentes, taxa, yield_, roi, bancaAtual, oddMedia, streak, streakTipo };
+  }, [bets, config]);
+
+  const evolucao = useMemo(() => {
+    const ord = bets
+      .filter((b) => b.status === "green" || b.status === "red" || b.status === "anulada")
+      .sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
+    let acc = config.bancaInicial;
+    const pts = [{ i: 0, banca: acc, label: "Início" }];
+    ord.forEach((b, idx) => {
+      acc += lucroDe(b);
+      pts.push({ i: idx + 1, banca: Math.round(acc * 100) / 100, label: b.date, evento: b.evento });
+    });
+    return pts;
+  }, [bets, config]);
+
+  const breakdown = useMemo(() => {
+    const map = {};
+    bets.filter((b) => b.status === "green" || b.status === "red").forEach((b) => {
+      const k = b[breakdownBy] || "—";
+      if (!map[k]) map[k] = { nome: k, lucro: 0, n: 0 };
+      map[k].lucro += lucroDe(b);
+      map[k].n += 1;
+    });
+    return Object.values(map).sort((a, b) => b.lucro - a.lucro);
+  }, [bets, breakdownBy]);
+
+  const filtradas = useMemo(() => {
+    const arr = filtro === "todas" ? bets : bets.filter((b) => b.status === filtro);
+    return [...arr].sort((a, b) => (a.date > b.date ? -1 : a.date < b.date ? 1 : 0));
+  }, [bets, filtro]);
+
+  const lucroCor = stats.lucroTotal > 0 ? C.green : stats.lucroTotal < 0 ? C.red : C.txt2;
+  const vazio = bets.length === 0;
+
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: BODY, color: C.txt }}>
+      <style>{CSS}</style>
+      <div className="bk-wrap">
+        <header className="bk-head">
+          <div className="bk-brand">
+            <span className="bk-logo">◆</span> BANCA
+            <span className="bk-brand-sub">gestão de apostas</span>
+          </div>
+          <div className="bk-banca-now">
+            <span className="bk-banca-lbl">banca atual</span>
+            <span className="bk-banca-val" style={{ color: lucroCor }}>{fmtBRL(stats.bancaAtual)}</span>
+            <span className="bk-banca-roi" style={{ color: lucroCor }}>
+              {stats.lucroTotal >= 0 ? "▲" : "▼"} {fmtPct(stats.roi)}
+            </span>
+          </div>
+        </header>
+
+        <div className="bk-ticker">
+          <Tick lbl="lucro" val={fmtBRL(stats.lucroTotal)} cor={lucroCor} />
+          <Tick lbl="yield" val={fmtPct(stats.yield_)} cor={stats.yield_ >= 0 ? C.green : C.red} />
+          <Tick lbl="apostadas" val={`${stats.resolvidas.length}`} cor={C.txt} />
+          <Tick lbl="pendentes" val={`${stats.pendentes}`} cor={C.gold} />
+          {stats.streakTipo && (
+            <Tick lbl="sequência"
+              val={`${stats.streak} ${stats.streakTipo === "green" ? "green" : "red"}${stats.streak > 1 ? "s" : ""}`}
+              cor={stats.streakTipo === "green" ? C.green : C.red} />
+          )}
+        </div>
+
+        <div className="bk-config">
+          <ConfigField label="Banca inicial" value={config.bancaInicial} prefix="R$"
+            onChange={(v) => saveConfig({ ...config, bancaInicial: v })} />
+          <ConfigField label="Valor da unidade" value={config.valorUnidade} prefix="R$"
+            onChange={(v) => saveConfig({ ...config, valorUnidade: v || 1 })} />
+          <div className="bk-config-note">
+            1 unidade = {fmtBRL(config.valorUnidade)} ·{" "}
+            {config.bancaInicial > 0 ? ((config.valorUnidade / config.bancaInicial) * 100).toFixed(1) : "0"}% da banca
+          </div>
+        </div>
+
+        <div className="bk-kpis">
+          <KPI titulo="Banca atual" valor={fmtBRL(stats.bancaAtual)} cor={lucroCor} />
+          <KPI titulo="Lucro" valor={fmtBRL(stats.lucroTotal)} cor={lucroCor}
+            sub={`${fmtNum(stats.lucroTotal / config.valorUnidade)}u`} />
+          <KPI titulo="ROI s/ banca" valor={fmtPct(stats.roi)} cor={stats.roi >= 0 ? C.green : C.red} />
+          <KPI titulo="Yield" valor={fmtPct(stats.yield_)} cor={stats.yield_ >= 0 ? C.green : C.red} sub="lucro ÷ volume" />
+          <KPI titulo="Taxa de acerto" valor={stats.taxa.toFixed(0) + "%"} cor={C.gold} sub={`${stats.greens}G · ${stats.reds}R`} />
+          <KPI titulo="Volume apostado" valor={fmtBRL(stats.turnover)} cor={C.txt} sub={`odd média ${stats.oddMedia.toFixed(2)}`} />
+        </div>
+
+        {vazio ? (
+          <EmptyState onExemplo={carregarExemplo} />
+        ) : (
+          <React.Fragment>
+            <section className="bk-panel">
+              <div className="bk-panel-head">
+                <h2 className="bk-panel-title">Evolução da banca</h2>
+                <span className="bk-panel-sub">{evolucao.length - 1} apostas resolvidas</span>
+              </div>
+              <div style={{ width: "100%", height: 240 }}>
+                <ResponsiveContainer>
+                  <AreaChart data={evolucao} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gBanca" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={lucroCor} stopOpacity={0.35} />
+                        <stop offset="100%" stopColor={lucroCor} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke={C.line} strokeDasharray="2 4" vertical={false} />
+                    <XAxis dataKey="i" hide />
+                    <YAxis tick={{ fill: C.txt3, fontSize: 11, fontFamily: MONO }}
+                      tickFormatter={(v) => "R$" + (v / 1000 >= 1 ? (v / 1000).toFixed(1) + "k" : v)}
+                      width={56} axisLine={false} tickLine={false} />
+                    <ReferenceLine y={config.bancaInicial} stroke={C.line2} strokeDasharray="4 4" />
+                    <Tooltip content={<BancaTip />} />
+                    <Area type="monotone" dataKey="banca" stroke={lucroCor} strokeWidth={2}
+                      fill="url(#gBanca)" dot={false} activeDot={{ r: 4, fill: lucroCor }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <div className="bk-grid2">
+              <FormAposta onAdd={addBet} valorUnidade={config.valorUnidade} />
+              <section className="bk-panel">
+                <div className="bk-panel-head">
+                  <h2 className="bk-panel-title">Desempenho</h2>
+                  <div className="bk-seg">
+                    {["esporte", "mercado", "casa"].map((k) => (
+                      <button key={k} onClick={() => setBreakdownBy(k)}
+                        className={"bk-seg-btn" + (breakdownBy === k ? " on" : "")}>{k}</button>
+                    ))}
+                  </div>
+                </div>
+                {breakdown.length === 0 ? (
+                  <p className="bk-muted" style={{ padding: "24px 4px" }}>
+                    Resolva apostas (green/red) para ver o lucro por {breakdownBy}.
+                  </p>
+                ) : (
+                  <div style={{ width: "100%", height: Math.max(140, breakdown.length * 42) }}>
+                    <ResponsiveContainer>
+                      <BarChart layout="vertical" data={breakdown} margin={{ top: 4, right: 16, left: 4, bottom: 4 }}>
+                        <CartesianGrid stroke={C.line} strokeDasharray="2 4" horizontal={false} />
+                        <XAxis type="number" tick={{ fill: C.txt3, fontSize: 10, fontFamily: MONO }}
+                          tickFormatter={(v) => "R$" + v} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="nome" width={92}
+                          tick={{ fill: C.txt2, fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <ReferenceLine x={0} stroke={C.line2} />
+                        <Tooltip content={<BreakTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                        <Bar dataKey="lucro" radius={[0, 3, 3, 0]} barSize={18}>
+                          {breakdown.map((d, i) => (<Cell key={i} fill={d.lucro >= 0 ? C.green : C.red} />))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <section className="bk-panel">
+              <div className="bk-panel-head">
+                <h2 className="bk-panel-title">Histórico</h2>
+                <div className="bk-filtros">
+                  {[["todas", "todas"], ["pendente", "pendentes"], ["green", "green"], ["red", "red"], ["anulada", "anuladas"]].map(([v, l]) => (
+                    <button key={v} onClick={() => setFiltro(v)} className={"bk-chip" + (filtro === v ? " on" : "")}>{l}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="bk-cards">
+                {filtradas.map((b) => (
+                  <BetCard key={b.id} b={b} unidade={config.valorUnidade} onStatus={setStatus} onDel={delBet} />
+                ))}
+                {filtradas.length === 0 && (
+                  <p className="bk-muted" style={{ padding: "16px 4px" }}>Nenhuma aposta neste filtro.</p>
+                )}
+              </div>
+              <div className="bk-foot">
+                <button className="bk-link-danger" onClick={limparTudo}>Apagar todas</button>
+              </div>
+            </section>
+          </React.Fragment>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ───────────── subcomponents ───────────── */
+function Tick({ lbl, val, cor }) {
+  return (
+    <span className="bk-tick">
+      <span className="bk-tick-lbl">{lbl}</span>
+      <span className="bk-tick-val" style={{ color: cor }}>{val}</span>
+    </span>
+  );
+}
+function KPI({ titulo, valor, cor, sub }) {
+  return (
+    <div className="bk-kpi">
+      <span className="bk-kpi-titulo">{titulo}</span>
+      <span className="bk-kpi-valor" style={{ color: cor }}>{valor}</span>
+      {sub && <span className="bk-kpi-sub">{sub}</span>}
+    </div>
+  );
+}
+function ConfigField({ label, value, prefix, onChange }) {
+  return (
+    <label className="bk-cf">
+      <span className="bk-cf-lbl">{label}</span>
+      <span className="bk-cf-input">
+        <span className="bk-cf-prefix">{prefix}</span>
+        <input type="number" min="0" step="1" value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value) || 0)} />
+      </span>
+    </label>
+  );
+}
+function FormAposta({ onAdd, valorUnidade }) {
+  const [f, setF] = useState({ date: todayISO(), esporte: "Futebol", evento: "", mercado: "", casa: "", odd: "", stake: "" });
+  const [erro, setErro] = useState("");
+  const up = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const submit = () => {
+    const odd = parseFloat(f.odd), stake = parseFloat(f.stake);
+    if (!f.evento.trim()) return setErro("Informe o evento (ex.: Flamengo x Palmeiras).");
+    if (!(odd > 1)) return setErro("A odd precisa ser maior que 1.");
+    if (!(stake > 0)) return setErro("O stake precisa ser maior que zero.");
+    setErro("");
+    onAdd({ date: f.date, esporte: f.esporte, evento: f.evento.trim(),
+      mercado: f.mercado.trim() || "—", casa: f.casa.trim() || "—", odd, stake, status: "pendente" });
+    setF({ date: f.date, esporte: f.esporte, evento: "", mercado: "", casa: f.casa, odd: "", stake: "" });
+  };
+  const units = parseFloat(f.stake) > 0 ? (parseFloat(f.stake) / valorUnidade).toFixed(2) : null;
+  const retorno = parseFloat(f.odd) > 0 && parseFloat(f.stake) > 0 ? parseFloat(f.odd) * parseFloat(f.stake) : null;
+  return (
+    <section className="bk-panel">
+      <div className="bk-panel-head"><h2 className="bk-panel-title">Nova aposta</h2></div>
+      <div className="bk-form">
+        <div className="bk-row">
+          <Field label="Data"><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></Field>
+          <Field label="Esporte">
+            <select value={f.esporte} onChange={(e) => up("esporte", e.target.value)}>
+              {ESPORTES.map((e) => <option key={e}>{e}</option>)}
+            </select>
+          </Field>
+        </div>
+        <Field label="Evento"><input placeholder="Time A x Time B" value={f.evento} onChange={(e) => up("evento", e.target.value)} /></Field>
+        <div className="bk-row">
+          <Field label="Mercado"><input placeholder="Mais de 2.5 gols" value={f.mercado} onChange={(e) => up("mercado", e.target.value)} /></Field>
+          <Field label="Casa"><input placeholder="Bet365" value={f.casa} onChange={(e) => up("casa", e.target.value)} /></Field>
+        </div>
+        <div className="bk-row">
+          <Field label="Odd"><input type="number" step="0.01" min="1.01" placeholder="1.85" value={f.odd} onChange={(e) => up("odd", e.target.value)} /></Field>
+          <Field label="Stake (R$)"><input type="number" step="1" min="0" placeholder="50" value={f.stake} onChange={(e) => up("stake", e.target.value)} /></Field>
+        </div>
+        <div className="bk-form-meta">
+          {units && <span>{units}u</span>}
+          {retorno && <span>retorno potencial <b style={{ color: C.gold }}>{fmtBRL(retorno)}</b></span>}
+        </div>
+        {erro && <div className="bk-erro">{erro}</div>}
+        <button className="bk-add" onClick={submit}>Registrar aposta</button>
+      </div>
+    </section>
+  );
+}
+function Field({ label, children }) {
+  return (<label className="bk-field"><span className="bk-field-lbl">{label}</span>{children}</label>);
+}
+function BetCard({ b, unidade, onStatus, onDel }) {
+  const lucro = lucroDe(b);
+  const units = (b.stake / unidade).toFixed(2);
+  const statusInfo = {
+    pendente: { txt: "pendente", cor: C.gold, bg: "rgba(231,169,60,0.12)" },
+    green: { txt: "green", cor: C.green, bg: "rgba(27,209,124,0.12)" },
+    red: { txt: "red", cor: C.red, bg: "rgba(240,69,91,0.12)" },
+    anulada: { txt: "anulada", cor: C.txt2, bg: "rgba(154,165,182,0.10)" },
+  }[b.status];
+  return (
+    <div className="bk-betcard">
+      <div className="bk-bc-top">
+        <div className="bk-bc-main">
+          <div className="bk-bc-evento">{b.evento}</div>
+          <div className="bk-bc-sub">
+            <span className="bk-bc-tag">{b.esporte}</span>
+            <span>{b.mercado}</span><span className="bk-bc-dot">·</span><span>{b.casa}</span>
+          </div>
+        </div>
+        <span className="bk-bc-status" style={{ color: statusInfo.cor, background: statusInfo.bg }}>{statusInfo.txt}</span>
+      </div>
+      <div className="bk-bc-nums">
+        <Num lbl="odd" v={b.odd.toFixed(2)} />
+        <Num lbl="stake" v={fmtBRL(b.stake)} sub={`${units}u`} />
+        <Num lbl="data" v={b.date.slice(5).split("-").reverse().join("/")} />
+        <Num lbl="resultado" v={b.status === "pendente" ? "—" : (lucro >= 0 ? "+" : "") + fmtBRL(lucro)}
+          cor={b.status === "green" ? C.green : b.status === "red" ? C.red : C.txt2} />
+      </div>
+      <div className="bk-bc-actions">
+        {b.status === "pendente" ? (
+          <React.Fragment>
+            <button className="bk-act green" onClick={() => onStatus(b.id, "green")}>Green</button>
+            <button className="bk-act red" onClick={() => onStatus(b.id, "red")}>Red</button>
+            <button className="bk-act ghost" onClick={() => onStatus(b.id, "anulada")}>Anular</button>
+          </React.Fragment>
+        ) : (
+          <button className="bk-act ghost" onClick={() => onStatus(b.id, "pendente")}>Reabrir</button>
+        )}
+        <button className="bk-act del" onClick={() => onDel(b.id)} aria-label="Excluir">✕</button>
+      </div>
+    </div>
+  );
+}
+function Num({ lbl, v, sub, cor }) {
+  return (
+    <div className="bk-num">
+      <span className="bk-num-lbl">{lbl}</span>
+      <span className="bk-num-v" style={cor ? { color: cor } : null}>{v}</span>
+      {sub && <span className="bk-num-sub">{sub}</span>}
+    </div>
+  );
+}
+function EmptyState({ onExemplo }) {
+  return (
+    <section className="bk-empty">
+      <div className="bk-empty-icon">◆</div>
+      <h2>Sua banca começa aqui</h2>
+      <p>Ajuste a banca inicial e o valor da unidade acima, registre suas apostas e acompanhe ROI, yield e a evolução do seu lucro.</p>
+      <button className="bk-add" style={{ maxWidth: 280 }} onClick={onExemplo}>Carregar dados de exemplo</button>
+      <span className="bk-empty-note">Você pode apagar os exemplos a qualquer momento.</span>
+    </section>
+  );
+}
+function BancaTip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bk-tip">
+      <div className="bk-tip-t">{d.label === "Início" ? "Banca inicial" : d.label.split("-").reverse().join("/")}</div>
+      <div className="bk-tip-v" style={{ color: C.gold }}>{fmtBRL(d.banca)}</div>
+      {d.evento && <div className="bk-tip-s">{d.evento}</div>}
+    </div>
+  );
+}
+function BreakTip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bk-tip">
+      <div className="bk-tip-t">{d.nome}</div>
+      <div className="bk-tip-v" style={{ color: d.lucro >= 0 ? C.green : C.red }}>{fmtBRL(d.lucro)}</div>
+      <div className="bk-tip-s">{d.n} aposta{d.n > 1 ? "s" : ""}</div>
+    </div>
+  );
+}
+
+/* ───────────── css ───────────── */
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+* { box-sizing: border-box; }
+::selection { background: ${C.gold}; color: ${C.bg}; }
+.bk-wrap { max-width: 1140px; margin: 0 auto; padding: 20px 16px 64px; }
+.bk-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; padding-bottom:16px; }
+.bk-brand { font-family:${DISP}; font-weight:700; font-size:20px; letter-spacing:1px; display:flex; align-items:center; gap:8px; }
+.bk-logo { color:${C.gold}; font-size:14px; }
+.bk-brand-sub { font-family:${BODY}; font-weight:400; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:${C.txt3}; margin-left:4px; }
+.bk-banca-now { display:flex; flex-direction:column; align-items:flex-end; }
+.bk-banca-lbl { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:${C.txt3}; }
+.bk-banca-val { font-family:${MONO}; font-weight:600; font-size:30px; line-height:1.1; }
+.bk-banca-roi { font-family:${MONO}; font-size:12px; margin-top:2px; }
+.bk-ticker { display:flex; gap:0; flex-wrap:wrap; border-top:1px solid ${C.line}; border-bottom:1px solid ${C.line}; margin-bottom:18px; }
+.bk-tick { display:flex; align-items:baseline; gap:8px; padding:10px 18px 10px 0; margin-right:18px; }
+.bk-tick-lbl { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:${C.txt3}; }
+.bk-tick-val { font-family:${MONO}; font-weight:500; font-size:13px; }
+.bk-config { display:flex; align-items:flex-end; gap:18px; flex-wrap:wrap; margin-bottom:20px; }
+.bk-cf { display:flex; flex-direction:column; gap:5px; }
+.bk-cf-lbl { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:${C.txt3}; }
+.bk-cf-input { display:flex; align-items:center; background:${C.card}; border:1px solid ${C.line2}; border-radius:8px; padding:0 10px; }
+.bk-cf-prefix { font-family:${MONO}; font-size:12px; color:${C.txt3}; }
+.bk-cf-input input { background:transparent; border:none; outline:none; color:${C.txt}; font-family:${MONO}; font-size:14px; width:84px; padding:8px 6px; }
+.bk-config-note { font-size:11px; color:${C.txt2}; padding-bottom:8px; }
+.bk-kpis { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:18px; }
+.bk-kpi { background:${C.card}; border:1px solid ${C.line}; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:4px; }
+.bk-kpi-titulo { font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:${C.txt3}; }
+.bk-kpi-valor { font-family:${MONO}; font-weight:600; font-size:21px; line-height:1.1; }
+.bk-kpi-sub { font-family:${MONO}; font-size:11px; color:${C.txt3}; }
+.bk-panel { background:${C.card}; border:1px solid ${C.line}; border-radius:14px; padding:16px 16px 14px; margin-bottom:16px; }
+.bk-panel-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+.bk-panel-title { font-family:${DISP}; font-weight:600; font-size:15px; margin:0; letter-spacing:.3px; }
+.bk-panel-sub { font-family:${MONO}; font-size:11px; color:${C.txt3}; }
+.bk-muted { color:${C.txt2}; font-size:13px; }
+.bk-grid2 { display:grid; grid-template-columns:1fr; gap:16px; }
+.bk-seg { display:flex; gap:2px; background:${C.bg2}; border:1px solid ${C.line}; border-radius:8px; padding:2px; }
+.bk-seg-btn { background:transparent; border:none; color:${C.txt3}; font-family:${BODY}; font-size:11px; text-transform:capitalize; padding:5px 10px; border-radius:6px; cursor:pointer; }
+.bk-seg-btn.on { background:${C.cardHi}; color:${C.txt}; }
+.bk-form { display:flex; flex-direction:column; gap:11px; }
+.bk-row { display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+.bk-field { display:flex; flex-direction:column; gap:5px; }
+.bk-field-lbl { font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:${C.txt3}; }
+.bk-field input, .bk-field select { background:${C.bg2}; border:1px solid ${C.line2}; border-radius:8px; color:${C.txt}; font-family:${BODY}; font-size:14px; padding:9px 10px; outline:none; width:100%; }
+.bk-field input:focus-visible, .bk-field select:focus-visible, .bk-cf-input:focus-within { border-color:${C.gold}; }
+.bk-field input[type=number] { font-family:${MONO}; }
+.bk-form-meta { display:flex; gap:14px; font-family:${MONO}; font-size:12px; color:${C.txt2}; min-height:14px; }
+.bk-erro { color:${C.red}; font-size:12px; }
+.bk-add { background:${C.gold}; color:${C.bg}; border:none; border-radius:9px; font-family:${DISP}; font-weight:600; font-size:14px; padding:11px; cursor:pointer; transition:filter .15s; }
+.bk-add:hover { filter:brightness(1.08); }
+.bk-filtros { display:flex; gap:6px; flex-wrap:wrap; }
+.bk-chip { background:${C.bg2}; border:1px solid ${C.line}; color:${C.txt3}; font-size:11px; padding:5px 11px; border-radius:20px; cursor:pointer; font-family:${BODY}; }
+.bk-chip.on { border-color:${C.gold}; color:${C.gold}; }
+.bk-cards { display:flex; flex-direction:column; gap:10px; }
+.bk-betcard { background:${C.bg2}; border:1px solid ${C.line}; border-radius:11px; padding:13px; }
+.bk-bc-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.bk-bc-evento { font-weight:600; font-size:14px; }
+.bk-bc-sub { display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-size:11px; color:${C.txt2}; margin-top:3px; }
+.bk-bc-tag { background:${C.cardHi}; color:${C.txt2}; padding:2px 7px; border-radius:5px; font-size:10px; letter-spacing:.5px; }
+.bk-bc-dot { color:${C.txt3}; }
+.bk-bc-status { font-size:10px; font-weight:600; letter-spacing:1px; text-transform:uppercase; padding:4px 9px; border-radius:6px; white-space:nowrap; }
+.bk-bc-nums { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0; padding:10px 0; border-top:1px solid ${C.line}; border-bottom:1px solid ${C.line}; }
+.bk-num { display:flex; flex-direction:column; gap:2px; }
+.bk-num-lbl { font-size:9px; letter-spacing:1px; text-transform:uppercase; color:${C.txt3}; }
+.bk-num-v { font-family:${MONO}; font-size:13px; font-weight:500; }
+.bk-num-sub { font-family:${MONO}; font-size:10px; color:${C.txt3}; }
+.bk-bc-actions { display:flex; gap:7px; align-items:center; }
+.bk-act { border:1px solid ${C.line2}; background:transparent; border-radius:7px; font-family:${BODY}; font-size:12px; font-weight:500; padding:7px 13px; cursor:pointer; color:${C.txt}; }
+.bk-act.green { border-color:${C.greenDim}; color:${C.green}; }
+.bk-act.green:hover { background:rgba(27,209,124,0.10); }
+.bk-act.red { border-color:${C.redDim}; color:${C.red}; }
+.bk-act.red:hover { background:rgba(240,69,91,0.10); }
+.bk-act.ghost { color:${C.txt2}; }
+.bk-act.del { margin-left:auto; color:${C.txt3}; padding:7px 11px; }
+.bk-act.del:hover { color:${C.red}; border-color:${C.redDim}; }
+.bk-foot { margin-top:12px; display:flex; justify-content:flex-end; }
+.bk-link-danger { background:none; border:none; color:${C.txt3}; font-size:11px; cursor:pointer; text-decoration:underline; }
+.bk-link-danger:hover { color:${C.red}; }
+.bk-empty { text-align:center; padding:48px 20px; background:${C.card}; border:1px solid ${C.line}; border-radius:14px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+.bk-empty-icon { color:${C.gold}; font-size:28px; }
+.bk-empty h2 { font-family:${DISP}; font-weight:600; font-size:20px; margin:0; }
+.bk-empty p { color:${C.txt2}; font-size:13px; max-width:420px; margin:0 0 8px; line-height:1.55; }
+.bk-empty-note { font-size:11px; color:${C.txt3}; }
+.bk-tip { background:${C.bg}; border:1px solid ${C.line2}; border-radius:8px; padding:8px 11px; }
+.bk-tip-t { font-size:11px; color:${C.txt2}; }
+.bk-tip-v { font-family:${MONO}; font-weight:600; font-size:15px; margin-top:2px; }
+.bk-tip-s { font-size:10px; color:${C.txt3}; margin-top:2px; }
+@media (min-width:560px){ .bk-kpis { grid-template-columns:repeat(3,1fr); } }
+@media (min-width:900px){ .bk-kpis { grid-template-columns:repeat(6,1fr); } .bk-grid2 { grid-template-columns:1fr 1fr; } }
+@media (prefers-reduced-motion:reduce){ * { transition:none !important; animation:none !important; } }
+`;
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

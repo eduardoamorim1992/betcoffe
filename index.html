@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BET · painel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  /* ───────────── tokens (iguais aos painéis) ───────────── */
+  :root {
+    --bg:#0C0F14; --bg2:#10141B; --card:#151A22; --cardHi:#1B212B;
+    --line:#222A35; --line2:#2D3744;
+    --txt:#E9EDF3; --txt2:#9AA5B6; --txt3:#67738A;
+    --green:#1BD17C; --red:#F0455B;
+    --gold:#E7A93C; --goldDim:#8E6C2A;
+    --mono:'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --disp:'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --body:'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(231,169,60,.08), transparent 60%),
+      var(--bg);
+    color: var(--txt);
+    font-family: var(--body);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+  }
+  .wrap { width: 100%; max-width: 920px; }
+
+  /* ───────────── cabeçalho ───────────── */
+  .head { text-align: center; margin-bottom: 44px; }
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--gold);
+    border: 1px solid var(--goldDim);
+    border-radius: 999px;
+    padding: 5px 14px;
+    margin-bottom: 18px;
+  }
+  h1 {
+    font-family: var(--disp);
+    font-weight: 700;
+    font-size: clamp(30px, 5vw, 46px);
+    margin: 0 0 10px;
+    letter-spacing: -.02em;
+  }
+  h1 .accent { color: var(--gold); }
+  .sub { color: var(--txt2); font-size: 15px; margin: 0; line-height: 1.6; }
+
+  /* ───────────── cartões ───────────── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    position: relative;
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    background: linear-gradient(180deg, var(--cardHi), var(--card));
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 28px 26px 26px;
+    overflow: hidden;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+  .card::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(231,169,60,.10), transparent 45%);
+    opacity: 0;
+    transition: opacity .18s ease;
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    border-color: var(--gold);
+    box-shadow: 0 14px 40px rgba(0,0,0,.45), 0 0 0 1px rgba(231,169,60,.25);
+  }
+  .card:hover::before { opacity: 1; }
+
+  .icon {
+    width: 52px; height: 52px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    border-radius: 13px;
+    background: var(--bg2);
+    border: 1px solid var(--line2);
+    margin-bottom: 18px;
+  }
+  .card h2 {
+    font-family: var(--disp);
+    font-weight: 600;
+    font-size: 22px;
+    margin: 0 0 8px;
+  }
+  .card p { color: var(--txt2); font-size: 14px; line-height: 1.6; margin: 0 0 20px; }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 22px; }
+  .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--txt3);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 3px 8px;
+  }
+  .go {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--gold);
+    font-weight: 500;
+  }
+  .go .arrow { transition: transform .18s ease; }
+  .card:hover .go .arrow { transform: translateX(4px); }
+
+  .foot {
+    text-align: center;
+    margin-top: 40px;
+    color: var(--txt3);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="head">
+      <span class="badge">Gestão &amp; Análise de Apostas</span>
+      <h1>BET <span class="accent">·</span> painel</h1>
+      <p class="sub">Sistema pessoal para controlar a banca e encontrar valor nas odds.<br />Escolha um módulo para começar.</p>
+    </header>
+
+    <main class="grid">
+      <a class="card" href="banca.html">
+        <div class="icon">💰</div>
+        <h2>Banca</h2>
+        <p>Registre apostas, controle banca e unidades e acompanhe KPIs de desempenho com gráficos de evolução.</p>
+        <div class="tags">
+          <span class="tag">lucro / ROI</span>
+          <span class="tag">yield</span>
+          <span class="tag">taxa de acerto</span>
+          <span class="tag">por esporte</span>
+        </div>
+        <span class="go">Abrir gestão <span class="arrow">→</span></span>
+      </a>
+
+      <a class="card" href="analise.html">
+        <div class="icon">📊</div>
+        <h2>Análise</h2>
+        <p>Modelo de Poisson para 1X2, over/under, ambas marcam e placares prováveis, com detector de valor e stake por Kelly.</p>
+        <div class="tags">
+          <span class="tag">Poisson</span>
+          <span class="tag">valor (EV)</span>
+          <span class="tag">Kelly</span>
+          <span class="tag">API-Football</span>
+        </div>
+        <span class="go">Abrir análise <span class="arrow">→</span></span>
+      </a>
+    </main>
+
+    <p class="foot">localStorage · sem servidor · abre direto no navegador</p>
+  </div>
+</body>
+</html>
