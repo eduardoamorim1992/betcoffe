@@ -28,6 +28,13 @@ const MONO="'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace";
 const DISP="'Space Grotesk', ui-sans-serif, system-ui, sans-serif";
 const BODY="'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif";
 
+// Base do proxy: usa /api quando a página é servida pelo server.py (http/https);
+// se aberta direto via file://, fala com o servidor local em http://localhost:8000.
+const API_PORT = 8000;
+const API_BASE = location.protocol.indexOf("http") === 0
+  ? "/api"
+  : "http://localhost:" + API_PORT + "/api";
+
 /* ── matemática ── */
 function fact(n){ let r=1; for(let i=2;i<=n;i++) r*=i; return r; }
 function pois(k,l){ return Math.exp(-l)*Math.pow(l,k)/fact(k); }
@@ -70,9 +77,82 @@ function App(){
   const [banca,setBanca]=useState(bancaInit);
   const [kFrac,setKFrac]=useState(0.25);
 
+  // ── API-Football (via proxy local) ──
+  const [apiKey,setApiKey]=useState(()=>{ try{ return localStorage.getItem("apifootball:key")||""; }catch(e){ return ""; } });
+  const [busca,setBusca]=useState({ casa:"", fora:"" });
+  const [lastN,setLastN]=useState(10);
+  const [apiBusy,setApiBusy]=useState(false);
+  const [apiMsg,setApiMsg]=useState(null); // {type:"ok"|"err"|"info", text}
+
   const up=(k,v)=>setInp(s=>({...s,[k]:v}));
   const upOdd=(k,v)=>setOdds(s=>({...s,[k]:v}));
   const num=(v)=>{ const n=parseFloat(v); return isFinite(n)?n:0; };
+
+  const saveKey=(v)=>{ setApiKey(v); try{ localStorage.setItem("apifootball:key",v); }catch(e){} };
+
+  async function apiGet(path){
+    const headers={};
+    if(apiKey) headers["x-apisports-key"]=apiKey;
+    let r;
+    try{ r=await fetch(API_BASE+path,{headers}); }
+    catch(e){ throw new Error("não consegui falar com o proxy local. O server.py está rodando?"); }
+    let j={};
+    try{ j=await r.json(); }catch(e){}
+    if(!r.ok){
+      const det=j&&j.errors ? (typeof j.errors==="string"?j.errors:JSON.stringify(j.errors)) : ("HTTP "+r.status);
+      throw new Error(det);
+    }
+    return j;
+  }
+
+  // busca o time pelo nome e calcula médias dos últimos N jogos finalizados
+  async function statsTime(nome){
+    const ts=await apiGet("/teams?search="+encodeURIComponent(nome));
+    const arr=(ts&&ts.response)||[];
+    if(!arr.length) throw new Error('time não encontrado: "'+nome+'"');
+    const team=arr[0].team;
+    const fx=await apiGet("/fixtures?team="+team.id+"&last="+lastN);
+    const games=((fx&&fx.response)||[]).filter(g=>{
+      const st=g.fixture&&g.fixture.status&&g.fixture.status.short;
+      return st==="FT"||st==="AET"||st==="PEN";
+    });
+    if(!games.length) throw new Error("sem jogos finalizados para "+team.name);
+    let gf=0,ga=0;
+    games.forEach(g=>{
+      const emCasa=g.teams.home.id===team.id;
+      const gh=(g.goals.home==null?0:g.goals.home);
+      const gv=(g.goals.away==null?0:g.goals.away);
+      gf+= emCasa?gh:gv;
+      ga+= emCasa?gv:gh;
+    });
+    const n=games.length;
+    return { name:team.name, gf:gf/n, ga:ga/n, n };
+  }
+
+  async function buscarMedias(){
+    if(!apiKey.trim()){ setApiMsg({type:"err",text:"informe a chave da API-Football."}); return; }
+    if(!busca.casa.trim() && !busca.fora.trim()){ setApiMsg({type:"err",text:"digite o nome de pelo menos um time."}); return; }
+    setApiBusy(true); setApiMsg({type:"info",text:"buscando na API-Football…"});
+    try{
+      const upd={}; const partes=[];
+      if(busca.casa.trim()){
+        const h=await statsTime(busca.casa.trim());
+        upd.casa=h.name; upd.gfH=+h.gf.toFixed(2); upd.gaH=+h.ga.toFixed(2);
+        partes.push(h.name+": "+h.n+"j · "+h.gf.toFixed(2)+" mar / "+h.ga.toFixed(2)+" sof");
+      }
+      if(busca.fora.trim()){
+        const a=await statsTime(busca.fora.trim());
+        upd.fora=a.name; upd.gfA=+a.gf.toFixed(2); upd.gaA=+a.ga.toFixed(2);
+        partes.push(a.name+": "+a.n+"j · "+a.gf.toFixed(2)+" mar / "+a.ga.toFixed(2)+" sof");
+      }
+      setInp(s=>({...s,...upd}));
+      setApiMsg({type:"ok",text:"✓ "+partes.join("   ·   ")});
+    }catch(e){
+      setApiMsg({type:"err",text:"erro: "+e.message});
+    }finally{
+      setApiBusy(false);
+    }
+  }
 
   const res=useMemo(()=>{
     const L=num(inp.ligaMedia)||1.35;
@@ -128,6 +208,40 @@ function App(){
           O modelo calcula probabilidades a partir dos números que <b>você</b> inserir. Ele só aponta valor quando
           sua estimativa é melhor que a do mercado — o que é raro. <b>Não é garantia de lucro.</b>
         </div>
+
+        {/* preencher pela API-Football */}
+        <section className="panel api">
+          <div className="phead"><h2>Preencher pela API-Football</h2>
+            <span className="psub">requer o mini-servidor local (server.py)</span></div>
+
+          <label className="row small" style={{marginBottom:12}}>
+            <span className="rlbl">Chave x-apisports-key</span>
+            <input type="password" autoComplete="off" placeholder="cole sua chave da API-Football"
+              value={apiKey} onChange={e=>saveKey(e.target.value)} />
+          </label>
+
+          <div className="apirow">
+            <label className="row small"><span className="rlbl">Time mandante (busca)</span>
+              <input type="text" placeholder="ex.: Palmeiras" value={busca.casa}
+                onChange={e=>setBusca(s=>({...s,casa:e.target.value}))}
+                onKeyDown={e=>{ if(e.key==="Enter") buscarMedias(); }} /></label>
+            <label className="row small"><span className="rlbl">Time visitante (busca)</span>
+              <input type="text" placeholder="ex.: Flamengo" value={busca.fora}
+                onChange={e=>setBusca(s=>({...s,fora:e.target.value}))}
+                onKeyDown={e=>{ if(e.key==="Enter") buscarMedias(); }} /></label>
+            <label className="row small lastn"><span className="rlbl">Últimos jogos</span>
+              <input type="number" min="3" max="30" value={lastN}
+                onChange={e=>setLastN(Math.max(1,Math.min(30,parseInt(e.target.value)||10)))} /></label>
+          </div>
+
+          <button className="apibtn" onClick={buscarMedias} disabled={apiBusy}>
+            {apiBusy ? "buscando…" : "Buscar médias e preencher"}</button>
+
+          {apiMsg && <div className={"apimsg "+apiMsg.type}>{apiMsg.text}</div>}
+
+          <p className="apihint">As médias preenchem os campos de <b>Dados do jogo</b> abaixo (gols marcados/sofridos
+          dos últimos jogos). Revise antes de confiar — o modelo continua sendo só um apoio.</p>
+        </section>
 
         {/* entradas */}
         <section className="panel">
@@ -303,6 +417,20 @@ const CSS = `
 .brand-sub{font-family:${BODY};font-weight:400;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${C.txt3};margin-left:4px;}
 .aviso{background:rgba(231,169,60,0.08);border:1px solid ${C.line2};border-left:3px solid ${C.gold};border-radius:8px;padding:11px 13px;font-size:12.5px;color:${C.txt2};line-height:1.5;margin-bottom:18px;}
 .aviso b{color:${C.txt};}
+.apirow{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.apirow .row{flex:1;min-width:150px;}
+.apirow .lastn{flex:0 0 120px;min-width:90px;}
+.api input[type=password],.api input[type=text],.api input[type=number]{background:${C.bg2};border:1px solid ${C.line2};border-radius:8px;color:${C.txt};font-size:14px;padding:8px 10px;outline:none;width:100%;}
+.api input:focus-visible{border-color:${C.gold};}
+.apibtn{background:${C.gold};color:${C.bg};border:none;border-radius:9px;font-family:${DISP};font-weight:600;font-size:13.5px;padding:10px 16px;cursor:pointer;transition:filter .15s;}
+.apibtn:hover{filter:brightness(1.08);}
+.apibtn:disabled{opacity:.55;cursor:default;}
+.apimsg{margin-top:12px;font-size:12px;border-radius:8px;padding:9px 12px;line-height:1.5;font-family:${MONO};word-break:break-word;}
+.apimsg.ok{background:rgba(27,209,124,0.08);border:1px solid ${C.greenDim};color:${C.green};}
+.apimsg.err{background:rgba(240,69,91,0.08);border:1px solid ${C.redDim};color:${C.red};}
+.apimsg.info{background:${C.bg2};border:1px solid ${C.line2};color:${C.txt2};}
+.apihint{font-size:11.5px;color:${C.txt3};line-height:1.5;margin:12px 0 0;}
+.apihint b{color:${C.txt2};}
 .panel{background:${C.card};border:1px solid ${C.line};border-radius:14px;padding:16px;margin-bottom:16px;}
 .phead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
 .phead h2{font-family:${DISP};font-weight:600;font-size:15px;margin:0;}

@@ -1,3 +1,10 @@
+# Segredos — chave da API-Football (nunca versionar)
+apikey.txt
+
+# Python
+__pycache__/
+*.pyc
+
 # Lixo de sistema operacional
 Thumbs.db
 ehthumbs.db
