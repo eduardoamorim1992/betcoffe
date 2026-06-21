@@ -11,10 +11,16 @@ Python (`server.py`) entra em cena só para a **busca automática na API-Footbal
 
 ## Módulos
 
-### 🏠 `index.html` — Painel inicial
-Capa do projeto (HTML/CSS puro) com dois cartões que levam aos módulos abaixo.
+### 🏠 `index.html` — Aplicativo único (recomendado)
+App completo num só arquivo, com **abas no topo** alternando entre **Banca** e
+**Análise** (a última aba fica salva no `localStorage`). É o arquivo a abrir no dia
+a dia. As duas abas usam exatamente a mesma lógica descrita abaixo.
 
-### 💰 `banca.html` — Gestão de banca
+> `banca.html` e `analise.html` continuam existindo como **versões standalone /
+> backup** de cada módulo — úteis para abrir um módulo isolado, mas o `index.html`
+> já reúne os dois.
+
+### 💰 Aba Banca (também em `banca.html`) — Gestão de banca
 Registro e acompanhamento das apostas.
 
 - **Registro de apostas:** data, esporte, evento, mercado, casa, odd, stake e
@@ -24,7 +30,7 @@ Registro e acompanhamento das apostas.
 - **Gráficos:** evolução da banca e lucro por esporte / mercado / casa.
 - **Persistência:** `localStorage`.
 
-### 📊 `analise.html` — Análise estatística (Poisson)
+### 📊 Aba Análise (também em `analise.html`) — Análise estatística (Poisson)
 Analisador para estimar probabilidades e detectar valor.
 
 - **Modelo de Poisson** a partir das médias de gols: probabilidades de **1X2**,
@@ -46,7 +52,7 @@ Analisador para estimar probabilidades e detectar valor.
 Para **Banca** e para a análise com entrada **manual** de gols, não precisa de nada:
 
 1. Abra o **`index.html`** com duplo clique (ou arraste para o navegador).
-2. Navegue pelos cartões até **Banca** ou **Análise**.
+2. Alterne entre as abas **Banca** e **Análise** no topo.
 
 ### Modo com API-Football (recomendado para a Análise automática)
 
@@ -70,7 +76,7 @@ com a chave no header certo.
 ### Configurar a chave da API-Football
 
 1. Crie uma conta em [api-sports.io](https://www.api-sports.io/) e copie sua chave.
-2. Suba o `server.py` e abra `http://localhost:8000/analise.html`.
+2. Suba o `server.py` e abra `http://localhost:8000/` (aba **Análise**).
 3. No painel **Preencher pela API-Football**, cole a chave (fica salva no
    `localStorage`), digite os nomes dos times e clique em **Buscar médias**.
 
@@ -85,9 +91,9 @@ A chave pode também ser fornecida ao servidor sem digitá-la na página, por:
 
 ```
 Bet coffe/
-├── index.html      # painel inicial (capa com os links)
-├── banca.html      # gestão de banca, KPIs e gráficos
-├── analise.html    # modelo de Poisson + detector de valor (Kelly)
+├── index.html      # APP ÚNICO: abas Banca + Análise (use este)
+├── banca.html      # versão standalone da Banca (backup)
+├── analise.html    # versão standalone da Análise (backup)
 ├── server.py       # mini-servidor: serve os HTML + proxy da API-Football
 ├── apikey.txt      # (opcional) chave da API — ignorado pelo git
 ├── .gitignore

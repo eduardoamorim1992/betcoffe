@@ -3,178 +3,1047 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>BET · painel</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<title>BET · gestão & análise</title>
 <style>
-  /* ───────────── tokens (iguais aos painéis) ───────────── */
-  :root {
-    --bg:#0C0F14; --bg2:#10141B; --card:#151A22; --cardHi:#1B212B;
-    --line:#222A35; --line2:#2D3744;
-    --txt:#E9EDF3; --txt2:#9AA5B6; --txt3:#67738A;
-    --green:#1BD17C; --red:#F0455B;
-    --gold:#E7A93C; --goldDim:#8E6C2A;
-    --mono:'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-    --disp:'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-    --body:'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  body {
-    min-height: 100vh;
-    background:
-      radial-gradient(1200px 600px at 50% -10%, rgba(231,169,60,.08), transparent 60%),
-      var(--bg);
-    color: var(--txt);
-    font-family: var(--body);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 48px 24px;
-  }
-  .wrap { width: 100%; max-width: 920px; }
-
-  /* ───────────── cabeçalho ───────────── */
-  .head { text-align: center; margin-bottom: 44px; }
-  .badge {
-    display: inline-block;
-    font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: .22em;
-    text-transform: uppercase;
-    color: var(--gold);
-    border: 1px solid var(--goldDim);
-    border-radius: 999px;
-    padding: 5px 14px;
-    margin-bottom: 18px;
-  }
-  h1 {
-    font-family: var(--disp);
-    font-weight: 700;
-    font-size: clamp(30px, 5vw, 46px);
-    margin: 0 0 10px;
-    letter-spacing: -.02em;
-  }
-  h1 .accent { color: var(--gold); }
-  .sub { color: var(--txt2); font-size: 15px; margin: 0; line-height: 1.6; }
-
-  /* ───────────── cartões ───────────── */
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
-  }
-  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
-
-  .card {
-    position: relative;
-    display: block;
-    text-decoration: none;
-    color: inherit;
-    background: linear-gradient(180deg, var(--cardHi), var(--card));
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    padding: 28px 26px 26px;
-    overflow: hidden;
-    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
-  }
-  .card::before {
-    content: "";
-    position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgba(231,169,60,.10), transparent 45%);
-    opacity: 0;
-    transition: opacity .18s ease;
-  }
-  .card:hover {
-    transform: translateY(-4px);
-    border-color: var(--gold);
-    box-shadow: 0 14px 40px rgba(0,0,0,.45), 0 0 0 1px rgba(231,169,60,.25);
-  }
-  .card:hover::before { opacity: 1; }
-
-  .icon {
-    width: 52px; height: 52px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 26px;
-    border-radius: 13px;
-    background: var(--bg2);
-    border: 1px solid var(--line2);
-    margin-bottom: 18px;
-  }
-  .card h2 {
-    font-family: var(--disp);
-    font-weight: 600;
-    font-size: 22px;
-    margin: 0 0 8px;
-  }
-  .card p { color: var(--txt2); font-size: 14px; line-height: 1.6; margin: 0 0 20px; }
-
-  .tags { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 22px; }
-  .tag {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--txt3);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 3px 8px;
-  }
-  .go {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--gold);
-    font-weight: 500;
-  }
-  .go .arrow { transition: transform .18s ease; }
-  .card:hover .go .arrow { transform: translateX(4px); }
-
-  .foot {
-    text-align: center;
-    margin-top: 40px;
-    color: var(--txt3);
-    font-family: var(--mono);
-    font-size: 12px;
-  }
+  html, body { margin: 0; background: #0C0F14; }
+  #root { min-height: 100vh; }
 </style>
+<!-- React + Recharts + Babel via CDN (internet só no 1º carregamento) -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<!-- Babel fixado na v7: a v8 usa o runtime automático de JSX (import de
+     "react/jsx-runtime") e quebra o setup UMD/global. A v7 usa React.createElement. -->
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 </head>
 <body>
-  <div class="wrap">
-    <header class="head">
-      <span class="badge">Gestão &amp; Análise de Apostas</span>
-      <h1>BET <span class="accent">·</span> painel</h1>
-      <p class="sub">Sistema pessoal para controlar a banca e encontrar valor nas odds.<br />Escolha um módulo para começar.</p>
-    </header>
+<div id="root"></div>
 
-    <main class="grid">
-      <a class="card" href="banca.html">
-        <div class="icon">💰</div>
-        <h2>Banca</h2>
-        <p>Registre apostas, controle banca e unidades e acompanhe KPIs de desempenho com gráficos de evolução.</p>
-        <div class="tags">
-          <span class="tag">lucro / ROI</span>
-          <span class="tag">yield</span>
-          <span class="tag">taxa de acerto</span>
-          <span class="tag">por esporte</span>
+<script type="text/babel" data-presets="react">
+const { useState, useMemo } = React;
+const {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid, Cell, ReferenceLine,
+} = Recharts;
+
+/* ═══════════════ tokens compartilhados ═══════════════ */
+const C = {
+  bg: "#0C0F14", bg2: "#10141B", card: "#151A22", cardHi: "#1B212B",
+  line: "#222A35", line2: "#2D3744",
+  txt: "#E9EDF3", txt2: "#9AA5B6", txt3: "#67738A",
+  green: "#1BD17C", greenDim: "#0F8C56",
+  red: "#F0455B", redDim: "#A8324A",
+  gold: "#E7A93C", goldDim: "#8E6C2A", blue: "#5C8DF0",
+};
+const MONO = "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace";
+const DISP = "'Space Grotesk', ui-sans-serif, system-ui, sans-serif";
+const BODY = "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif";
+const fmtBRL = (n) =>
+  (n < 0 ? "-" : "") + Math.abs(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+
+/* ╔═══════════════════════════════════════════════════════╗
+   ║  MÓDULO BANCA — gestão de banca                        ║
+   ╚═══════════════════════════════════════════════════════╝ */
+const ESPORTES = ["Futebol", "Basquete", "Tênis", "Vôlei", "MMA", "eSports", "Fut. Americano", "Outro"];
+
+const LS = {
+  load(key, fb) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fb; } catch (e) { return fb; } },
+  save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} },
+};
+
+const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(1) + "%";
+const fmtNum = (n) => n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+function lucroDe(b) {
+  if (b.status === "green") return b.stake * (b.odd - 1);
+  if (b.status === "red") return -b.stake;
+  return 0;
+}
+
+const EXEMPLO = () => {
+  const base = [
+    ["Futebol", "Flamengo x Palmeiras", "Mais de 2.5 gols", "Bet365", 1.85, 50, "green", -18],
+    ["Futebol", "Real Madrid x Barcelona", "Ambas marcam", "Betano", 1.72, 50, "red", -16],
+    ["Basquete", "Lakers x Celtics", "Lakers +5.5", "Betano", 1.90, 40, "green", -15],
+    ["Tênis", "Alcaraz x Sinner", "Alcaraz vence", "Bet365", 2.10, 30, "green", -13],
+    ["Futebol", "Corinthians x São Paulo", "Resultado: Empate", "Superbet", 3.20, 30, "red", -11],
+    ["MMA", "Pereira x Ankalaev", "Pereira por KO", "Betano", 2.75, 25, "red", -9],
+    ["Futebol", "Man City x Liverpool", "Menos de 3.5 gols", "Bet365", 1.65, 60, "green", -7],
+    ["eSports", "FURIA x LOUD", "FURIA vence mapa 1", "Betano", 1.95, 30, "green", -5],
+    ["Basquete", "Warriors x Nuggets", "Mais de 220.5 pts", "Superbet", 1.88, 40, "red", -3],
+    ["Futebol", "Inter x Grêmio", "Inter vence", "Bet365", 2.30, 35, "green", -1],
+    ["Tênis", "Sabalenka x Gauff", "Gauff +3.5 games", "Betano", 1.80, 30, "pendente", 0],
+    ["Futebol", "Bayern x Dortmund", "Mais de 2.5 gols", "Betano", 1.70, 50, "pendente", 0],
+  ];
+  return base.map(([esporte, evento, mercado, casa, odd, stake, status, dOff]) => ({
+    id: uid(), date: new Date(Date.now() + dOff * 86400000).toISOString().slice(0, 10),
+    esporte, evento, mercado, casa, odd, stake, status,
+  }));
+};
+
+function Banca() {
+  const [bets, setBets] = useState(() => LS.load("banca:bets", []));
+  const [config, setConfig] = useState(() => LS.load("banca:config", { bancaInicial: 1000, valorUnidade: 25 }));
+  const [breakdownBy, setBreakdownBy] = useState("esporte");
+  const [filtro, setFiltro] = useState("todas");
+
+  const saveBets = (next) => { setBets(next); LS.save("banca:bets", next); };
+  const saveConfig = (next) => { setConfig(next); LS.save("banca:config", next); };
+
+  const addBet = (b) => saveBets([{ ...b, id: uid() }, ...bets]);
+  const setStatus = (id, status) => saveBets(bets.map((b) => (b.id === id ? { ...b, status } : b)));
+  const delBet = (id) => saveBets(bets.filter((b) => b.id !== id));
+  const carregarExemplo = () => saveBets(EXEMPLO());
+  const limparTudo = () => { if (confirm("Apagar todas as apostas? Esta ação não pode ser desfeita.")) saveBets([]); };
+
+  const stats = useMemo(() => {
+    const resolvidas = bets.filter((b) => b.status === "green" || b.status === "red");
+    const lucroTotal = resolvidas.reduce((s, b) => s + lucroDe(b), 0);
+    const turnover = resolvidas.reduce((s, b) => s + b.stake, 0);
+    const greens = bets.filter((b) => b.status === "green").length;
+    const reds = bets.filter((b) => b.status === "red").length;
+    const pendentes = bets.filter((b) => b.status === "pendente").length;
+    const taxa = greens + reds > 0 ? (greens / (greens + reds)) * 100 : 0;
+    const yield_ = turnover > 0 ? (lucroTotal / turnover) * 100 : 0;
+    const roi = config.bancaInicial > 0 ? (lucroTotal / config.bancaInicial) * 100 : 0;
+    const bancaAtual = config.bancaInicial + lucroTotal;
+    const oddMedia = resolvidas.length ? resolvidas.reduce((s, b) => s + b.odd, 0) / resolvidas.length : 0;
+    const ord = [...resolvidas].sort((a, b) => (a.date < b.date ? 1 : -1));
+    let streak = 0, streakTipo = null;
+    for (const b of ord) {
+      if (streakTipo === null) { streakTipo = b.status; streak = 1; }
+      else if (b.status === streakTipo) streak++;
+      else break;
+    }
+    return { resolvidas, lucroTotal, turnover, greens, reds, pendentes, taxa, yield_, roi, bancaAtual, oddMedia, streak, streakTipo };
+  }, [bets, config]);
+
+  const evolucao = useMemo(() => {
+    const ord = bets
+      .filter((b) => b.status === "green" || b.status === "red" || b.status === "anulada")
+      .sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
+    let acc = config.bancaInicial;
+    const pts = [{ i: 0, banca: acc, label: "Início" }];
+    ord.forEach((b, idx) => {
+      acc += lucroDe(b);
+      pts.push({ i: idx + 1, banca: Math.round(acc * 100) / 100, label: b.date, evento: b.evento });
+    });
+    return pts;
+  }, [bets, config]);
+
+  const breakdown = useMemo(() => {
+    const map = {};
+    bets.filter((b) => b.status === "green" || b.status === "red").forEach((b) => {
+      const k = b[breakdownBy] || "—";
+      if (!map[k]) map[k] = { nome: k, lucro: 0, n: 0 };
+      map[k].lucro += lucroDe(b);
+      map[k].n += 1;
+    });
+    return Object.values(map).sort((a, b) => b.lucro - a.lucro);
+  }, [bets, breakdownBy]);
+
+  const filtradas = useMemo(() => {
+    const arr = filtro === "todas" ? bets : bets.filter((b) => b.status === filtro);
+    return [...arr].sort((a, b) => (a.date > b.date ? -1 : a.date < b.date ? 1 : 0));
+  }, [bets, filtro]);
+
+  const lucroCor = stats.lucroTotal > 0 ? C.green : stats.lucroTotal < 0 ? C.red : C.txt2;
+  const vazio = bets.length === 0;
+
+  return (
+    <div style={{ background: C.bg, fontFamily: BODY, color: C.txt }}>
+      <style>{CSS_BANCA}</style>
+      <div className="bk-wrap">
+        <header className="bk-head">
+          <div className="bk-brand">
+            <span className="bk-logo">◆</span> BANCA
+            <span className="bk-brand-sub">gestão de apostas</span>
+          </div>
+          <div className="bk-banca-now">
+            <span className="bk-banca-lbl">banca atual</span>
+            <span className="bk-banca-val" style={{ color: lucroCor }}>{fmtBRL(stats.bancaAtual)}</span>
+            <span className="bk-banca-roi" style={{ color: lucroCor }}>
+              {stats.lucroTotal >= 0 ? "▲" : "▼"} {fmtPct(stats.roi)}
+            </span>
+          </div>
+        </header>
+
+        <div className="bk-ticker">
+          <Tick lbl="lucro" val={fmtBRL(stats.lucroTotal)} cor={lucroCor} />
+          <Tick lbl="yield" val={fmtPct(stats.yield_)} cor={stats.yield_ >= 0 ? C.green : C.red} />
+          <Tick lbl="apostadas" val={`${stats.resolvidas.length}`} cor={C.txt} />
+          <Tick lbl="pendentes" val={`${stats.pendentes}`} cor={C.gold} />
+          {stats.streakTipo && (
+            <Tick lbl="sequência"
+              val={`${stats.streak} ${stats.streakTipo === "green" ? "green" : "red"}${stats.streak > 1 ? "s" : ""}`}
+              cor={stats.streakTipo === "green" ? C.green : C.red} />
+          )}
         </div>
-        <span class="go">Abrir gestão <span class="arrow">→</span></span>
-      </a>
 
-      <a class="card" href="analise.html">
-        <div class="icon">📊</div>
-        <h2>Análise</h2>
-        <p>Modelo de Poisson para 1X2, over/under, ambas marcam e placares prováveis, com detector de valor e stake por Kelly.</p>
-        <div class="tags">
-          <span class="tag">Poisson</span>
-          <span class="tag">valor (EV)</span>
-          <span class="tag">Kelly</span>
-          <span class="tag">API-Football</span>
+        <div className="bk-config">
+          <ConfigField label="Banca inicial" value={config.bancaInicial} prefix="R$"
+            onChange={(v) => saveConfig({ ...config, bancaInicial: v })} />
+          <ConfigField label="Valor da unidade" value={config.valorUnidade} prefix="R$"
+            onChange={(v) => saveConfig({ ...config, valorUnidade: v || 1 })} />
+          <div className="bk-config-note">
+            1 unidade = {fmtBRL(config.valorUnidade)} ·{" "}
+            {config.bancaInicial > 0 ? ((config.valorUnidade / config.bancaInicial) * 100).toFixed(1) : "0"}% da banca
+          </div>
         </div>
-        <span class="go">Abrir análise <span class="arrow">→</span></span>
-      </a>
-    </main>
 
-    <p class="foot">localStorage · sem servidor · abre direto no navegador</p>
-  </div>
+        <div className="bk-kpis">
+          <KPI titulo="Banca atual" valor={fmtBRL(stats.bancaAtual)} cor={lucroCor} />
+          <KPI titulo="Lucro" valor={fmtBRL(stats.lucroTotal)} cor={lucroCor}
+            sub={`${fmtNum(stats.lucroTotal / config.valorUnidade)}u`} />
+          <KPI titulo="ROI s/ banca" valor={fmtPct(stats.roi)} cor={stats.roi >= 0 ? C.green : C.red} />
+          <KPI titulo="Yield" valor={fmtPct(stats.yield_)} cor={stats.yield_ >= 0 ? C.green : C.red} sub="lucro ÷ volume" />
+          <KPI titulo="Taxa de acerto" valor={stats.taxa.toFixed(0) + "%"} cor={C.gold} sub={`${stats.greens}G · ${stats.reds}R`} />
+          <KPI titulo="Volume apostado" valor={fmtBRL(stats.turnover)} cor={C.txt} sub={`odd média ${stats.oddMedia.toFixed(2)}`} />
+        </div>
+
+        {vazio ? (
+          <EmptyState onExemplo={carregarExemplo} />
+        ) : (
+          <React.Fragment>
+            <section className="bk-panel">
+              <div className="bk-panel-head">
+                <h2 className="bk-panel-title">Evolução da banca</h2>
+                <span className="bk-panel-sub">{evolucao.length - 1} apostas resolvidas</span>
+              </div>
+              <div style={{ width: "100%", height: 240 }}>
+                <ResponsiveContainer>
+                  <AreaChart data={evolucao} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gBanca" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={lucroCor} stopOpacity={0.35} />
+                        <stop offset="100%" stopColor={lucroCor} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke={C.line} strokeDasharray="2 4" vertical={false} />
+                    <XAxis dataKey="i" hide />
+                    <YAxis tick={{ fill: C.txt3, fontSize: 11, fontFamily: MONO }}
+                      tickFormatter={(v) => "R$" + (v / 1000 >= 1 ? (v / 1000).toFixed(1) + "k" : v)}
+                      width={56} axisLine={false} tickLine={false} />
+                    <ReferenceLine y={config.bancaInicial} stroke={C.line2} strokeDasharray="4 4" />
+                    <Tooltip content={<BancaTip />} />
+                    <Area type="monotone" dataKey="banca" stroke={lucroCor} strokeWidth={2}
+                      fill="url(#gBanca)" dot={false} activeDot={{ r: 4, fill: lucroCor }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <div className="bk-grid2">
+              <FormAposta onAdd={addBet} valorUnidade={config.valorUnidade} />
+              <section className="bk-panel">
+                <div className="bk-panel-head">
+                  <h2 className="bk-panel-title">Desempenho</h2>
+                  <div className="bk-seg">
+                    {["esporte", "mercado", "casa"].map((k) => (
+                      <button key={k} onClick={() => setBreakdownBy(k)}
+                        className={"bk-seg-btn" + (breakdownBy === k ? " on" : "")}>{k}</button>
+                    ))}
+                  </div>
+                </div>
+                {breakdown.length === 0 ? (
+                  <p className="bk-muted" style={{ padding: "24px 4px" }}>
+                    Resolva apostas (green/red) para ver o lucro por {breakdownBy}.
+                  </p>
+                ) : (
+                  <div style={{ width: "100%", height: Math.max(140, breakdown.length * 42) }}>
+                    <ResponsiveContainer>
+                      <BarChart layout="vertical" data={breakdown} margin={{ top: 4, right: 16, left: 4, bottom: 4 }}>
+                        <CartesianGrid stroke={C.line} strokeDasharray="2 4" horizontal={false} />
+                        <XAxis type="number" tick={{ fill: C.txt3, fontSize: 10, fontFamily: MONO }}
+                          tickFormatter={(v) => "R$" + v} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="nome" width={92}
+                          tick={{ fill: C.txt2, fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <ReferenceLine x={0} stroke={C.line2} />
+                        <Tooltip content={<BreakTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                        <Bar dataKey="lucro" radius={[0, 3, 3, 0]} barSize={18}>
+                          {breakdown.map((d, i) => (<Cell key={i} fill={d.lucro >= 0 ? C.green : C.red} />))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <section className="bk-panel">
+              <div className="bk-panel-head">
+                <h2 className="bk-panel-title">Histórico</h2>
+                <div className="bk-filtros">
+                  {[["todas", "todas"], ["pendente", "pendentes"], ["green", "green"], ["red", "red"], ["anulada", "anuladas"]].map(([v, l]) => (
+                    <button key={v} onClick={() => setFiltro(v)} className={"bk-chip" + (filtro === v ? " on" : "")}>{l}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="bk-cards">
+                {filtradas.map((b) => (
+                  <BetCard key={b.id} b={b} unidade={config.valorUnidade} onStatus={setStatus} onDel={delBet} />
+                ))}
+                {filtradas.length === 0 && (
+                  <p className="bk-muted" style={{ padding: "16px 4px" }}>Nenhuma aposta neste filtro.</p>
+                )}
+              </div>
+              <div className="bk-foot">
+                <button className="bk-link-danger" onClick={limparTudo}>Apagar todas</button>
+              </div>
+            </section>
+          </React.Fragment>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── subcomponents da Banca ── */
+function Tick({ lbl, val, cor }) {
+  return (
+    <span className="bk-tick">
+      <span className="bk-tick-lbl">{lbl}</span>
+      <span className="bk-tick-val" style={{ color: cor }}>{val}</span>
+    </span>
+  );
+}
+function KPI({ titulo, valor, cor, sub }) {
+  return (
+    <div className="bk-kpi">
+      <span className="bk-kpi-titulo">{titulo}</span>
+      <span className="bk-kpi-valor" style={{ color: cor }}>{valor}</span>
+      {sub && <span className="bk-kpi-sub">{sub}</span>}
+    </div>
+  );
+}
+function ConfigField({ label, value, prefix, onChange }) {
+  return (
+    <label className="bk-cf">
+      <span className="bk-cf-lbl">{label}</span>
+      <span className="bk-cf-input">
+        <span className="bk-cf-prefix">{prefix}</span>
+        <input type="number" min="0" step="1" value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value) || 0)} />
+      </span>
+    </label>
+  );
+}
+function FormAposta({ onAdd, valorUnidade }) {
+  const [f, setF] = useState({ date: todayISO(), esporte: "Futebol", evento: "", mercado: "", casa: "", odd: "", stake: "" });
+  const [erro, setErro] = useState("");
+  const up = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const submit = () => {
+    const odd = parseFloat(f.odd), stake = parseFloat(f.stake);
+    if (!f.evento.trim()) return setErro("Informe o evento (ex.: Flamengo x Palmeiras).");
+    if (!(odd > 1)) return setErro("A odd precisa ser maior que 1.");
+    if (!(stake > 0)) return setErro("O stake precisa ser maior que zero.");
+    setErro("");
+    onAdd({ date: f.date, esporte: f.esporte, evento: f.evento.trim(),
+      mercado: f.mercado.trim() || "—", casa: f.casa.trim() || "—", odd, stake, status: "pendente" });
+    setF({ date: f.date, esporte: f.esporte, evento: "", mercado: "", casa: f.casa, odd: "", stake: "" });
+  };
+  const units = parseFloat(f.stake) > 0 ? (parseFloat(f.stake) / valorUnidade).toFixed(2) : null;
+  const retorno = parseFloat(f.odd) > 0 && parseFloat(f.stake) > 0 ? parseFloat(f.odd) * parseFloat(f.stake) : null;
+  return (
+    <section className="bk-panel">
+      <div className="bk-panel-head"><h2 className="bk-panel-title">Nova aposta</h2></div>
+      <div className="bk-form">
+        <div className="bk-row">
+          <Field label="Data"><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></Field>
+          <Field label="Esporte">
+            <select value={f.esporte} onChange={(e) => up("esporte", e.target.value)}>
+              {ESPORTES.map((e) => <option key={e}>{e}</option>)}
+            </select>
+          </Field>
+        </div>
+        <Field label="Evento"><input placeholder="Time A x Time B" value={f.evento} onChange={(e) => up("evento", e.target.value)} /></Field>
+        <div className="bk-row">
+          <Field label="Mercado"><input placeholder="Mais de 2.5 gols" value={f.mercado} onChange={(e) => up("mercado", e.target.value)} /></Field>
+          <Field label="Casa"><input placeholder="Bet365" value={f.casa} onChange={(e) => up("casa", e.target.value)} /></Field>
+        </div>
+        <div className="bk-row">
+          <Field label="Odd"><input type="number" step="0.01" min="1.01" placeholder="1.85" value={f.odd} onChange={(e) => up("odd", e.target.value)} /></Field>
+          <Field label="Stake (R$)"><input type="number" step="1" min="0" placeholder="50" value={f.stake} onChange={(e) => up("stake", e.target.value)} /></Field>
+        </div>
+        <div className="bk-form-meta">
+          {units && <span>{units}u</span>}
+          {retorno && <span>retorno potencial <b style={{ color: C.gold }}>{fmtBRL(retorno)}</b></span>}
+        </div>
+        {erro && <div className="bk-erro">{erro}</div>}
+        <button className="bk-add" onClick={submit}>Registrar aposta</button>
+      </div>
+    </section>
+  );
+}
+function Field({ label, children }) {
+  return (<label className="bk-field"><span className="bk-field-lbl">{label}</span>{children}</label>);
+}
+function BetCard({ b, unidade, onStatus, onDel }) {
+  const lucro = lucroDe(b);
+  const units = (b.stake / unidade).toFixed(2);
+  const statusInfo = {
+    pendente: { txt: "pendente", cor: C.gold, bg: "rgba(231,169,60,0.12)" },
+    green: { txt: "green", cor: C.green, bg: "rgba(27,209,124,0.12)" },
+    red: { txt: "red", cor: C.red, bg: "rgba(240,69,91,0.12)" },
+    anulada: { txt: "anulada", cor: C.txt2, bg: "rgba(154,165,182,0.10)" },
+  }[b.status];
+  return (
+    <div className="bk-betcard">
+      <div className="bk-bc-top">
+        <div className="bk-bc-main">
+          <div className="bk-bc-evento">{b.evento}</div>
+          <div className="bk-bc-sub">
+            <span className="bk-bc-tag">{b.esporte}</span>
+            <span>{b.mercado}</span><span className="bk-bc-dot">·</span><span>{b.casa}</span>
+          </div>
+        </div>
+        <span className="bk-bc-status" style={{ color: statusInfo.cor, background: statusInfo.bg }}>{statusInfo.txt}</span>
+      </div>
+      <div className="bk-bc-nums">
+        <Num lbl="odd" v={b.odd.toFixed(2)} />
+        <Num lbl="stake" v={fmtBRL(b.stake)} sub={`${units}u`} />
+        <Num lbl="data" v={b.date.slice(5).split("-").reverse().join("/")} />
+        <Num lbl="resultado" v={b.status === "pendente" ? "—" : (lucro >= 0 ? "+" : "") + fmtBRL(lucro)}
+          cor={b.status === "green" ? C.green : b.status === "red" ? C.red : C.txt2} />
+      </div>
+      <div className="bk-bc-actions">
+        {b.status === "pendente" ? (
+          <React.Fragment>
+            <button className="bk-act green" onClick={() => onStatus(b.id, "green")}>Green</button>
+            <button className="bk-act red" onClick={() => onStatus(b.id, "red")}>Red</button>
+            <button className="bk-act ghost" onClick={() => onStatus(b.id, "anulada")}>Anular</button>
+          </React.Fragment>
+        ) : (
+          <button className="bk-act ghost" onClick={() => onStatus(b.id, "pendente")}>Reabrir</button>
+        )}
+        <button className="bk-act del" onClick={() => onDel(b.id)} aria-label="Excluir">✕</button>
+      </div>
+    </div>
+  );
+}
+function Num({ lbl, v, sub, cor }) {
+  return (
+    <div className="bk-num">
+      <span className="bk-num-lbl">{lbl}</span>
+      <span className="bk-num-v" style={cor ? { color: cor } : null}>{v}</span>
+      {sub && <span className="bk-num-sub">{sub}</span>}
+    </div>
+  );
+}
+function EmptyState({ onExemplo }) {
+  return (
+    <section className="bk-empty">
+      <div className="bk-empty-icon">◆</div>
+      <h2>Sua banca começa aqui</h2>
+      <p>Ajuste a banca inicial e o valor da unidade acima, registre suas apostas e acompanhe ROI, yield e a evolução do seu lucro.</p>
+      <button className="bk-add" style={{ maxWidth: 280 }} onClick={onExemplo}>Carregar dados de exemplo</button>
+      <span className="bk-empty-note">Você pode apagar os exemplos a qualquer momento.</span>
+    </section>
+  );
+}
+function BancaTip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bk-tip">
+      <div className="bk-tip-t">{d.label === "Início" ? "Banca inicial" : d.label.split("-").reverse().join("/")}</div>
+      <div className="bk-tip-v" style={{ color: C.gold }}>{fmtBRL(d.banca)}</div>
+      {d.evento && <div className="bk-tip-s">{d.evento}</div>}
+    </div>
+  );
+}
+function BreakTip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bk-tip">
+      <div className="bk-tip-t">{d.nome}</div>
+      <div className="bk-tip-v" style={{ color: d.lucro >= 0 ? C.green : C.red }}>{fmtBRL(d.lucro)}</div>
+      <div className="bk-tip-s">{d.n} aposta{d.n > 1 ? "s" : ""}</div>
+    </div>
+  );
+}
+
+const CSS_BANCA = `
+.bk-wrap { max-width: 1140px; margin: 0 auto; padding: 16px 16px 64px; }
+.bk-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; padding-bottom:16px; }
+.bk-brand { font-family:${DISP}; font-weight:700; font-size:20px; letter-spacing:1px; display:flex; align-items:center; gap:8px; }
+.bk-logo { color:${C.gold}; font-size:14px; }
+.bk-brand-sub { font-family:${BODY}; font-weight:400; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:${C.txt3}; margin-left:4px; }
+.bk-banca-now { display:flex; flex-direction:column; align-items:flex-end; }
+.bk-banca-lbl { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:${C.txt3}; }
+.bk-banca-val { font-family:${MONO}; font-weight:600; font-size:30px; line-height:1.1; }
+.bk-banca-roi { font-family:${MONO}; font-size:12px; margin-top:2px; }
+.bk-ticker { display:flex; gap:0; flex-wrap:wrap; border-top:1px solid ${C.line}; border-bottom:1px solid ${C.line}; margin-bottom:18px; }
+.bk-tick { display:flex; align-items:baseline; gap:8px; padding:10px 18px 10px 0; margin-right:18px; }
+.bk-tick-lbl { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:${C.txt3}; }
+.bk-tick-val { font-family:${MONO}; font-weight:500; font-size:13px; }
+.bk-config { display:flex; align-items:flex-end; gap:18px; flex-wrap:wrap; margin-bottom:20px; }
+.bk-cf { display:flex; flex-direction:column; gap:5px; }
+.bk-cf-lbl { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:${C.txt3}; }
+.bk-cf-input { display:flex; align-items:center; background:${C.card}; border:1px solid ${C.line2}; border-radius:8px; padding:0 10px; }
+.bk-cf-prefix { font-family:${MONO}; font-size:12px; color:${C.txt3}; }
+.bk-cf-input input { background:transparent; border:none; outline:none; color:${C.txt}; font-family:${MONO}; font-size:14px; width:84px; padding:8px 6px; }
+.bk-config-note { font-size:11px; color:${C.txt2}; padding-bottom:8px; }
+.bk-kpis { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:18px; }
+.bk-kpi { background:${C.card}; border:1px solid ${C.line}; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:4px; }
+.bk-kpi-titulo { font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:${C.txt3}; }
+.bk-kpi-valor { font-family:${MONO}; font-weight:600; font-size:21px; line-height:1.1; }
+.bk-kpi-sub { font-family:${MONO}; font-size:11px; color:${C.txt3}; }
+.bk-panel { background:${C.card}; border:1px solid ${C.line}; border-radius:14px; padding:16px 16px 14px; margin-bottom:16px; }
+.bk-panel-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+.bk-panel-title { font-family:${DISP}; font-weight:600; font-size:15px; margin:0; letter-spacing:.3px; }
+.bk-panel-sub { font-family:${MONO}; font-size:11px; color:${C.txt3}; }
+.bk-muted { color:${C.txt2}; font-size:13px; }
+.bk-grid2 { display:grid; grid-template-columns:1fr; gap:16px; }
+.bk-seg { display:flex; gap:2px; background:${C.bg2}; border:1px solid ${C.line}; border-radius:8px; padding:2px; }
+.bk-seg-btn { background:transparent; border:none; color:${C.txt3}; font-family:${BODY}; font-size:11px; text-transform:capitalize; padding:5px 10px; border-radius:6px; cursor:pointer; }
+.bk-seg-btn.on { background:${C.cardHi}; color:${C.txt}; }
+.bk-form { display:flex; flex-direction:column; gap:11px; }
+.bk-row { display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+.bk-field { display:flex; flex-direction:column; gap:5px; }
+.bk-field-lbl { font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:${C.txt3}; }
+.bk-field input, .bk-field select { background:${C.bg2}; border:1px solid ${C.line2}; border-radius:8px; color:${C.txt}; font-family:${BODY}; font-size:14px; padding:9px 10px; outline:none; width:100%; }
+.bk-field input:focus-visible, .bk-field select:focus-visible, .bk-cf-input:focus-within { border-color:${C.gold}; }
+.bk-field input[type=number] { font-family:${MONO}; }
+.bk-form-meta { display:flex; gap:14px; font-family:${MONO}; font-size:12px; color:${C.txt2}; min-height:14px; }
+.bk-erro { color:${C.red}; font-size:12px; }
+.bk-add { background:${C.gold}; color:${C.bg}; border:none; border-radius:9px; font-family:${DISP}; font-weight:600; font-size:14px; padding:11px; cursor:pointer; transition:filter .15s; }
+.bk-add:hover { filter:brightness(1.08); }
+.bk-filtros { display:flex; gap:6px; flex-wrap:wrap; }
+.bk-chip { background:${C.bg2}; border:1px solid ${C.line}; color:${C.txt3}; font-size:11px; padding:5px 11px; border-radius:20px; cursor:pointer; font-family:${BODY}; }
+.bk-chip.on { border-color:${C.gold}; color:${C.gold}; }
+.bk-cards { display:flex; flex-direction:column; gap:10px; }
+.bk-betcard { background:${C.bg2}; border:1px solid ${C.line}; border-radius:11px; padding:13px; }
+.bk-bc-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.bk-bc-evento { font-weight:600; font-size:14px; }
+.bk-bc-sub { display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-size:11px; color:${C.txt2}; margin-top:3px; }
+.bk-bc-tag { background:${C.cardHi}; color:${C.txt2}; padding:2px 7px; border-radius:5px; font-size:10px; letter-spacing:.5px; }
+.bk-bc-dot { color:${C.txt3}; }
+.bk-bc-status { font-size:10px; font-weight:600; letter-spacing:1px; text-transform:uppercase; padding:4px 9px; border-radius:6px; white-space:nowrap; }
+.bk-bc-nums { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0; padding:10px 0; border-top:1px solid ${C.line}; border-bottom:1px solid ${C.line}; }
+.bk-num { display:flex; flex-direction:column; gap:2px; }
+.bk-num-lbl { font-size:9px; letter-spacing:1px; text-transform:uppercase; color:${C.txt3}; }
+.bk-num-v { font-family:${MONO}; font-size:13px; font-weight:500; }
+.bk-num-sub { font-family:${MONO}; font-size:10px; color:${C.txt3}; }
+.bk-bc-actions { display:flex; gap:7px; align-items:center; }
+.bk-act { border:1px solid ${C.line2}; background:transparent; border-radius:7px; font-family:${BODY}; font-size:12px; font-weight:500; padding:7px 13px; cursor:pointer; color:${C.txt}; }
+.bk-act.green { border-color:${C.greenDim}; color:${C.green}; }
+.bk-act.green:hover { background:rgba(27,209,124,0.10); }
+.bk-act.red { border-color:${C.redDim}; color:${C.red}; }
+.bk-act.red:hover { background:rgba(240,69,91,0.10); }
+.bk-act.ghost { color:${C.txt2}; }
+.bk-act.del { margin-left:auto; color:${C.txt3}; padding:7px 11px; }
+.bk-act.del:hover { color:${C.red}; border-color:${C.redDim}; }
+.bk-foot { margin-top:12px; display:flex; justify-content:flex-end; }
+.bk-link-danger { background:none; border:none; color:${C.txt3}; font-size:11px; cursor:pointer; text-decoration:underline; }
+.bk-link-danger:hover { color:${C.red}; }
+.bk-empty { text-align:center; padding:48px 20px; background:${C.card}; border:1px solid ${C.line}; border-radius:14px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+.bk-empty-icon { color:${C.gold}; font-size:28px; }
+.bk-empty h2 { font-family:${DISP}; font-weight:600; font-size:20px; margin:0; }
+.bk-empty p { color:${C.txt2}; font-size:13px; max-width:420px; margin:0 0 8px; line-height:1.55; }
+.bk-empty-note { font-size:11px; color:${C.txt3}; }
+.bk-tip { background:${C.bg}; border:1px solid ${C.line2}; border-radius:8px; padding:8px 11px; }
+.bk-tip-t { font-size:11px; color:${C.txt2}; }
+.bk-tip-v { font-family:${MONO}; font-weight:600; font-size:15px; margin-top:2px; }
+.bk-tip-s { font-size:10px; color:${C.txt3}; margin-top:2px; }
+@media (min-width:560px){ .bk-kpis { grid-template-columns:repeat(3,1fr); } }
+@media (min-width:900px){ .bk-kpis { grid-template-columns:repeat(6,1fr); } .bk-grid2 { grid-template-columns:1fr 1fr; } }
+`;
+
+
+/* ╔═══════════════════════════════════════════════════════╗
+   ║  MÓDULO ANÁLISE — modelo de Poisson + valor + Kelly    ║
+   ╚═══════════════════════════════════════════════════════╝ */
+
+// Base do proxy: usa /api quando a página é servida pelo server.py (http/https);
+// se aberta direto via file://, fala com o servidor local em http://localhost:8000.
+const API_PORT = 8000;
+const API_BASE = location.protocol.indexOf("http") === 0
+  ? "/api"
+  : "http://localhost:" + API_PORT + "/api";
+
+function fact(n){ let r=1; for(let i=2;i<=n;i++) r*=i; return r; }
+function pois(k,l){ return Math.exp(-l)*Math.pow(l,k)/fact(k); }
+const pct=(p)=>(p*100).toFixed(1)+"%";
+const fairOdd=(p)=> p>0 ? (1/p).toFixed(2) : "—";
+
+function analisar(lh, la){
+  const MAX=10;
+  let pH=0,pD=0,pA=0, btts=0;
+  const over={1.5:0,2.5:0,3.5:0};
+  const scores=[];
+  for(let i=0;i<=MAX;i++){
+    for(let j=0;j<=MAX;j++){
+      const p=pois(i,lh)*pois(j,la);
+      if(i>j)pH+=p; else if(i===j)pD+=p; else pA+=p;
+      const t=i+j;
+      [1.5,2.5,3.5].forEach(x=>{ if(t>x) over[x]+=p; });
+      if(i>0&&j>0) btts+=p;
+      scores.push({i,j,p});
+    }
+  }
+  scores.sort((a,b)=>b.p-a.p);
+  return { pH,pD,pA, over, under:{1.5:1-over[1.5],2.5:1-over[2.5],3.5:1-over[3.5]},
+    bttsY:btts, bttsN:1-btts, top:scores.slice(0,5), golsEsp:lh+la };
+}
+
+function Analise(){
+  // tenta puxar a banca do módulo Banca (mesmo navegador)
+  let bancaInit=1000;
+  try{ const c=JSON.parse(localStorage.getItem("banca:config")); if(c&&c.bancaInicial) bancaInit=c.bancaInicial; }catch(e){}
+
+  const [inp,setInp]=useState({
+    casa:"Mandante", fora:"Visitante",
+    gfH:1.6, gaH:0.9, gfA:1.1, gaA:1.4,
+    ligaMedia:1.35, vantCasa:1.10,
+  });
+  const [odds,setOdds]=useState({ um:"", x:"", dois:"", ov25:"", un25:"", bttsY:"", bttsN:"" });
+  const [banca,setBanca]=useState(bancaInit);
+  const [kFrac,setKFrac]=useState(0.25);
+
+  // ── API-Football (via proxy local) ──
+  const [apiKey,setApiKey]=useState(()=>{ try{ return localStorage.getItem("apifootball:key")||""; }catch(e){ return ""; } });
+  const [busca,setBusca]=useState({ casa:"", fora:"" });
+  const [lastN,setLastN]=useState(10);
+  const [apiBusy,setApiBusy]=useState(false);
+  const [apiMsg,setApiMsg]=useState(null); // {type:"ok"|"err"|"info", text}
+
+  const up=(k,v)=>setInp(s=>({...s,[k]:v}));
+  const upOdd=(k,v)=>setOdds(s=>({...s,[k]:v}));
+  const num=(v)=>{ const n=parseFloat(v); return isFinite(n)?n:0; };
+
+  const saveKey=(v)=>{ setApiKey(v); try{ localStorage.setItem("apifootball:key",v); }catch(e){} };
+
+  async function apiGet(path){
+    const headers={};
+    if(apiKey) headers["x-apisports-key"]=apiKey;
+    let r;
+    try{ r=await fetch(API_BASE+path,{headers}); }
+    catch(e){ throw new Error("não consegui falar com o proxy local. O server.py está rodando?"); }
+    let j={};
+    try{ j=await r.json(); }catch(e){}
+    if(!r.ok){
+      const det=j&&j.errors ? (typeof j.errors==="string"?j.errors:JSON.stringify(j.errors)) : ("HTTP "+r.status);
+      throw new Error(det);
+    }
+    return j;
+  }
+
+  // busca o time pelo nome e calcula médias dos últimos N jogos finalizados
+  async function statsTime(nome){
+    const ts=await apiGet("/teams?search="+encodeURIComponent(nome));
+    const arr=(ts&&ts.response)||[];
+    if(!arr.length) throw new Error('time não encontrado: "'+nome+'"');
+    const team=arr[0].team;
+    const fx=await apiGet("/fixtures?team="+team.id+"&last="+lastN);
+    const games=((fx&&fx.response)||[]).filter(g=>{
+      const st=g.fixture&&g.fixture.status&&g.fixture.status.short;
+      return st==="FT"||st==="AET"||st==="PEN";
+    });
+    if(!games.length) throw new Error("sem jogos finalizados para "+team.name);
+    let gf=0,ga=0;
+    games.forEach(g=>{
+      const emCasa=g.teams.home.id===team.id;
+      const gh=(g.goals.home==null?0:g.goals.home);
+      const gv=(g.goals.away==null?0:g.goals.away);
+      gf+= emCasa?gh:gv;
+      ga+= emCasa?gv:gh;
+    });
+    const n=games.length;
+    return { name:team.name, gf:gf/n, ga:ga/n, n };
+  }
+
+  async function buscarMedias(){
+    if(!apiKey.trim()){ setApiMsg({type:"err",text:"informe a chave da API-Football."}); return; }
+    if(!busca.casa.trim() && !busca.fora.trim()){ setApiMsg({type:"err",text:"digite o nome de pelo menos um time."}); return; }
+    setApiBusy(true); setApiMsg({type:"info",text:"buscando na API-Football…"});
+    try{
+      const upd={}; const partes=[];
+      if(busca.casa.trim()){
+        const h=await statsTime(busca.casa.trim());
+        upd.casa=h.name; upd.gfH=+h.gf.toFixed(2); upd.gaH=+h.ga.toFixed(2);
+        partes.push(h.name+": "+h.n+"j · "+h.gf.toFixed(2)+" mar / "+h.ga.toFixed(2)+" sof");
+      }
+      if(busca.fora.trim()){
+        const a=await statsTime(busca.fora.trim());
+        upd.fora=a.name; upd.gfA=+a.gf.toFixed(2); upd.gaA=+a.ga.toFixed(2);
+        partes.push(a.name+": "+a.n+"j · "+a.gf.toFixed(2)+" mar / "+a.ga.toFixed(2)+" sof");
+      }
+      setInp(s=>({...s,...upd}));
+      setApiMsg({type:"ok",text:"✓ "+partes.join("   ·   ")});
+    }catch(e){
+      setApiMsg({type:"err",text:"erro: "+e.message});
+    }finally{
+      setApiBusy(false);
+    }
+  }
+
+  const res=useMemo(()=>{
+    const L=num(inp.ligaMedia)||1.35;
+    const lhBase=(num(inp.gfH)*num(inp.gaA))/L;
+    const laBase=(num(inp.gfA)*num(inp.gaH))/L;
+    const hav=num(inp.vantCasa)||1;
+    const lh=Math.max(0.05, lhBase*hav);
+    const la=Math.max(0.05, laBase*(2-hav>0?(2-hav):0.9));
+    return { lh,la, ...analisar(lh,la) };
+  },[inp]);
+
+  // mercados com prob do modelo
+  const mercados=[
+    {key:"um",   nome:"Vitória "+inp.casa,  p:res.pH},
+    {key:"x",    nome:"Empate",             p:res.pD},
+    {key:"dois", nome:"Vitória "+inp.fora,  p:res.pA},
+    {key:"ov25", nome:"Mais de 2.5 gols",   p:res.over[2.5]},
+    {key:"un25", nome:"Menos de 2.5 gols",  p:res.under[2.5]},
+    {key:"bttsY",nome:"Ambas marcam: Sim",  p:res.bttsY},
+    {key:"bttsN",nome:"Ambas marcam: Não",  p:res.bttsN},
+  ];
+
+  const palpites=mercados.map(m=>{
+    const O=parseFloat(odds[m.key]);
+    if(!(O>1)) return {...m, O:null};
+    const edge=m.p*O-1;
+    const kelly=(m.p*O-1)/(O-1);
+    const frac=Math.max(0,kelly)*kFrac;
+    return {...m, O, edge, kelly, stake:banca*frac};
+  });
+  const comValor=palpites.filter(p=>p.O&&p.edge>0).sort((a,b)=>b.edge-a.edge);
+
+  return (
+    <div style={{background:C.bg,fontFamily:BODY,color:C.txt}}>
+      <style>{CSS_ANALISE}</style>
+      <div className="wrap">
+        <header className="head">
+          <div className="brand"><span className="logo">◆</span> ANÁLISE
+            <span className="brand-sub">modelo de Poisson</span></div>
+        </header>
+
+        <div className="aviso">
+          O modelo calcula probabilidades a partir dos números que <b>você</b> inserir. Ele só aponta valor quando
+          sua estimativa é melhor que a do mercado — o que é raro. <b>Não é garantia de lucro.</b>
+        </div>
+
+        {/* preencher pela API-Football */}
+        <section className="panel api">
+          <div className="phead"><h2>Preencher pela API-Football</h2>
+            <span className="psub">requer o mini-servidor local (server.py)</span></div>
+
+          <label className="row small" style={{marginBottom:12}}>
+            <span className="rlbl">Chave x-apisports-key</span>
+            <input type="password" autoComplete="off" placeholder="cole sua chave da API-Football"
+              value={apiKey} onChange={e=>saveKey(e.target.value)} />
+          </label>
+
+          <div className="apirow">
+            <label className="row small"><span className="rlbl">Time mandante (busca)</span>
+              <input type="text" placeholder="ex.: Palmeiras" value={busca.casa}
+                onChange={e=>setBusca(s=>({...s,casa:e.target.value}))}
+                onKeyDown={e=>{ if(e.key==="Enter") buscarMedias(); }} /></label>
+            <label className="row small"><span className="rlbl">Time visitante (busca)</span>
+              <input type="text" placeholder="ex.: Flamengo" value={busca.fora}
+                onChange={e=>setBusca(s=>({...s,fora:e.target.value}))}
+                onKeyDown={e=>{ if(e.key==="Enter") buscarMedias(); }} /></label>
+            <label className="row small lastn"><span className="rlbl">Últimos jogos</span>
+              <input type="number" min="3" max="30" value={lastN}
+                onChange={e=>setLastN(Math.max(1,Math.min(30,parseInt(e.target.value)||10)))} /></label>
+          </div>
+
+          <button className="apibtn" onClick={buscarMedias} disabled={apiBusy}>
+            {apiBusy ? "buscando…" : "Buscar médias e preencher"}</button>
+
+          {apiMsg && <div className={"apimsg "+apiMsg.type}>{apiMsg.text}</div>}
+
+          <p className="apihint">As médias preenchem os campos de <b>Dados do jogo</b> abaixo (gols marcados/sofridos
+          dos últimos jogos). Revise antes de confiar — o modelo continua sendo só um apoio.</p>
+        </section>
+
+        {/* entradas */}
+        <section className="panel">
+          <div className="phead"><h2>Dados do jogo</h2>
+            <span className="psub">médias dos últimos ~6–10 jogos</span></div>
+
+          <div className="teams">
+            <div className="team">
+              <input className="tname" value={inp.casa} onChange={e=>up("casa",e.target.value)} />
+              <span className="thint">mandante</span>
+              <Row label="Gols marcados / jogo" v={inp.gfH} on={v=>up("gfH",v)} />
+              <Row label="Gols sofridos / jogo" v={inp.gaH} on={v=>up("gaH",v)} />
+            </div>
+            <div className="vs">×</div>
+            <div className="team">
+              <input className="tname" value={inp.fora} onChange={e=>up("fora",e.target.value)} />
+              <span className="thint">visitante</span>
+              <Row label="Gols marcados / jogo" v={inp.gfA} on={v=>up("gfA",v)} />
+              <Row label="Gols sofridos / jogo" v={inp.gaA} on={v=>up("gaA",v)} />
+            </div>
+          </div>
+
+          <div className="adv">
+            <Row label="Média de gols na liga (por time)" v={inp.ligaMedia} on={v=>up("ligaMedia",v)} small />
+            <Row label="Fator vantagem de casa" v={inp.vantCasa} on={v=>up("vantCasa",v)} small step="0.05" />
+          </div>
+
+          <div className="lambdas">
+            <span>Gols esperados <b style={{color:C.gold}}>{inp.casa}</b>: <b className="mono">{res.lh.toFixed(2)}</b></span>
+            <span>Gols esperados <b style={{color:C.gold}}>{inp.fora}</b>: <b className="mono">{res.la.toFixed(2)}</b></span>
+            <span>Total esperado: <b className="mono">{res.golsEsp.toFixed(2)}</b></span>
+          </div>
+        </section>
+
+        {/* probabilidades */}
+        <section className="panel">
+          <div className="phead"><h2>Probabilidades do modelo</h2>
+            <span className="psub">odd justa = 1 ÷ probabilidade</span></div>
+
+          <Grupo titulo="Resultado (1X2)" itens={[
+            ["Vitória "+inp.casa, res.pH, C.green],
+            ["Empate", res.pD, C.txt2],
+            ["Vitória "+inp.fora, res.pA, C.blue],
+          ]}/>
+          <Grupo titulo="Total de gols" itens={[
+            ["Mais de 1.5", res.over[1.5], C.gold],
+            ["Mais de 2.5", res.over[2.5], C.gold],
+            ["Mais de 3.5", res.over[3.5], C.gold],
+            ["Menos de 2.5", res.under[2.5], C.txt2],
+          ]}/>
+          <Grupo titulo="Ambas marcam" itens={[
+            ["Sim", res.bttsY, C.green],
+            ["Não", res.bttsN, C.red],
+          ]}/>
+
+          <div className="placares">
+            <span className="plbl">Placares mais prováveis</span>
+            <div className="prow">
+              {res.top.map((s,i)=>(
+                <span key={i} className="pscore">
+                  <b className="mono">{s.i}–{s.j}</b><em>{pct(s.p)}</em>
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* valor */}
+        <section className="panel">
+          <div className="phead"><h2>Detector de valor</h2>
+            <span className="psub">digite a odd da casa em cada mercado</span></div>
+
+          <div className="valcfg">
+            <Row label="Sua banca (R$)" v={banca} on={v=>setBanca(num(v))} small />
+            <label className="kf">
+              <span className="rlbl">Fração de Kelly</span>
+              <select value={kFrac} onChange={e=>setKFrac(parseFloat(e.target.value))}>
+                <option value={0.10}>1/10 (conservador)</option>
+                <option value={0.25}>1/4 (recomendado)</option>
+                <option value={0.50}>1/2 (agressivo)</option>
+                <option value={1}>Kelly cheio (arriscado)</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="vtable">
+            <div className="vth"><span>Mercado</span><span>Modelo</span><span>Justa</span><span>Odd casa</span><span>Edge</span><span>Stake</span></div>
+            {palpites.map(m=>(
+              <div key={m.key} className={"vtr"+(m.O&&m.edge>0?" val":"")}>
+                <span className="vmkt">{m.nome}</span>
+                <span className="mono">{pct(m.p)}</span>
+                <span className="mono dim">{fairOdd(m.p)}</span>
+                <input className="oddin mono" type="number" step="0.01" placeholder="—"
+                  value={odds[m.key]} onChange={e=>upOdd(m.key,e.target.value)} />
+                <span className="mono" style={{color:!m.O?C.txt3:m.edge>0?C.green:C.red}}>
+                  {m.O? (m.edge>=0?"+":"")+(m.edge*100).toFixed(1)+"%" : "—"}</span>
+                <span className="mono" style={{color:m.O&&m.edge>0?C.gold:C.txt3}}>
+                  {m.O&&m.edge>0? fmtBRL(m.stake) : "—"}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="palpites">
+            <span className="plbl">Palpites de valor</span>
+            {comValor.length===0 ? (
+              <p className="muted">Nenhuma aposta de valor encontrada com essas odds. Pelo modelo, o
+              melhor palpite é <b>não apostar</b> neste jogo — e isso conta como decisão correta.</p>
+            ) : (
+              <div className="pcards">
+                {comValor.map(m=>(
+                  <div key={m.key} className="pcard">
+                    <div className="pc-top"><span>{m.nome}</span><span className="mono" style={{color:C.green}}>+{(m.edge*100).toFixed(1)}%</span></div>
+                    <div className="pc-row">
+                      <span>odd {m.O.toFixed(2)}</span>
+                      <span>modelo {pct(m.p)}</span>
+                      <span>stake <b style={{color:C.gold}}>{fmtBRL(m.stake)}</b></span>
+                    </div>
+                    {m.edge<0.05 && <span className="pc-warn">edge baixo — provavelmente dentro da margem de erro do modelo</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="panel notas">
+          <h2>O que o modelo NÃO sabe</h2>
+          <p>Ele usa só os gols que você inseriu. Não considera desfalques, lesões, suspensões, motivação,
+          calendário, clima ou notícias de última hora. Odds da casa já embutem uma margem (overround), então
+          edges pequenos (abaixo de ~5%) costumam ser ruído, não vantagem real. Use isto como apoio à decisão,
+          não como verdade absoluta. Onde achar os números: tabela da liga, FBref, SofaScore ou Understat (médias e xG).</p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function Row({label,v,on,small,step}){
+  return (
+    <label className={"row"+(small?" small":"")}>
+      <span className="rlbl">{label}</span>
+      <input className="mono" type="number" step={step||"0.1"} min="0" value={v}
+        onChange={e=>on(e.target.value)} />
+    </label>
+  );
+}
+function Grupo({titulo,itens}){
+  const max=Math.max(...itens.map(i=>i[1]),0.0001);
+  return (
+    <div className="grupo">
+      <span className="glbl">{titulo}</span>
+      {itens.map(([nome,p,cor],i)=>(
+        <div key={i} className="bar">
+          <span className="bname">{nome}</span>
+          <div className="btrack"><div className="bfill" style={{width:(p/max*100)+"%",background:cor}}/></div>
+          <span className="bp mono">{(p*100).toFixed(1)}%</span>
+          <span className="bo mono">{fairOdd(p)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const CSS_ANALISE = `
+.mono{font-family:${MONO};}
+.wrap{max-width:1000px;margin:0 auto;padding:16px 16px 64px;}
+.head{padding-bottom:14px;}
+.brand{font-family:${DISP};font-weight:700;font-size:20px;letter-spacing:1px;display:flex;align-items:center;gap:8px;}
+.logo{color:${C.gold};font-size:14px;}
+.brand-sub{font-family:${BODY};font-weight:400;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${C.txt3};margin-left:4px;}
+.aviso{background:rgba(231,169,60,0.08);border:1px solid ${C.line2};border-left:3px solid ${C.gold};border-radius:8px;padding:11px 13px;font-size:12.5px;color:${C.txt2};line-height:1.5;margin-bottom:18px;}
+.aviso b{color:${C.txt};}
+.apirow{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.apirow .row{flex:1;min-width:150px;}
+.apirow .lastn{flex:0 0 120px;min-width:90px;}
+.api input[type=password],.api input[type=text],.api input[type=number]{background:${C.bg2};border:1px solid ${C.line2};border-radius:8px;color:${C.txt};font-size:14px;padding:8px 10px;outline:none;width:100%;}
+.api input:focus-visible{border-color:${C.gold};}
+.apibtn{background:${C.gold};color:${C.bg};border:none;border-radius:9px;font-family:${DISP};font-weight:600;font-size:13.5px;padding:10px 16px;cursor:pointer;transition:filter .15s;}
+.apibtn:hover{filter:brightness(1.08);}
+.apibtn:disabled{opacity:.55;cursor:default;}
+.apimsg{margin-top:12px;font-size:12px;border-radius:8px;padding:9px 12px;line-height:1.5;font-family:${MONO};word-break:break-word;}
+.apimsg.ok{background:rgba(27,209,124,0.08);border:1px solid ${C.greenDim};color:${C.green};}
+.apimsg.err{background:rgba(240,69,91,0.08);border:1px solid ${C.redDim};color:${C.red};}
+.apimsg.info{background:${C.bg2};border:1px solid ${C.line2};color:${C.txt2};}
+.apihint{font-size:11.5px;color:${C.txt3};line-height:1.5;margin:12px 0 0;}
+.apihint b{color:${C.txt2};}
+.panel{background:${C.card};border:1px solid ${C.line};border-radius:14px;padding:16px;margin-bottom:16px;}
+.phead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.phead h2{font-family:${DISP};font-weight:600;font-size:15px;margin:0;}
+.psub{font-family:${MONO};font-size:11px;color:${C.txt3};}
+.muted{color:${C.txt2};font-size:13px;line-height:1.55;}
+.teams{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:start;}
+.team{display:flex;flex-direction:column;gap:8px;}
+.tname{background:${C.bg2};border:1px solid ${C.line2};border-radius:8px;color:${C.txt};font-family:${DISP};font-weight:600;font-size:15px;padding:8px 10px;outline:none;}
+.tname:focus-visible{border-color:${C.gold};}
+.thint{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:${C.txt3};margin-top:-4px;}
+.vs{font-family:${DISP};color:${C.txt3};align-self:center;padding-top:30px;}
+.row{display:flex;flex-direction:column;gap:5px;}
+.row.small{flex:1;}
+.rlbl{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:${C.txt3};}
+.row input,.valcfg input,.kf select,.adv input{background:${C.bg2};border:1px solid ${C.line2};border-radius:8px;color:${C.txt};font-size:14px;padding:8px 10px;outline:none;width:100%;}
+.row input:focus-visible{border-color:${C.gold};}
+.adv{display:flex;gap:14px;margin-top:14px;}
+.lambdas{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid ${C.line};font-size:12px;color:${C.txt2};}
+.lambdas b{font-weight:600;}
+.grupo{margin-bottom:16px;}
+.glbl{display:block;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${C.txt3};margin-bottom:8px;}
+.bar{display:grid;grid-template-columns:130px 1fr 56px 44px;gap:10px;align-items:center;margin-bottom:6px;}
+.bname{font-size:12px;color:${C.txt2};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.btrack{background:${C.bg2};border-radius:5px;height:10px;overflow:hidden;}
+.bfill{height:100%;border-radius:5px;transition:width .25s;}
+.bp{font-size:12px;text-align:right;}
+.bo{font-size:11px;text-align:right;color:${C.txt3};}
+.placares{margin-top:6px;padding-top:14px;border-top:1px solid ${C.line};}
+.plbl{display:block;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${C.txt3};margin-bottom:9px;}
+.prow{display:flex;gap:8px;flex-wrap:wrap;}
+.pscore{display:flex;flex-direction:column;align-items:center;gap:2px;background:${C.bg2};border:1px solid ${C.line};border-radius:8px;padding:8px 12px;}
+.pscore b{font-size:14px;}
+.pscore em{font-style:normal;font-size:10px;color:${C.txt3};font-family:${MONO};}
+.valcfg{display:flex;gap:14px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap;}
+.kf{display:flex;flex-direction:column;gap:5px;flex:1;min-width:160px;}
+.vtable{border:1px solid ${C.line};border-radius:10px;overflow:hidden;}
+.vth,.vtr{display:grid;grid-template-columns:1.6fr .7fr .6fr .8fr .7fr .9fr;gap:8px;align-items:center;padding:9px 11px;}
+.vth{background:${C.bg2};font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${C.txt3};}
+.vtr{border-top:1px solid ${C.line};font-size:12.5px;}
+.vtr.val{background:rgba(27,209,124,0.06);}
+.vmkt{color:${C.txt2};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dim{color:${C.txt3};}
+.oddin{background:${C.bg};border:1px solid ${C.line2};border-radius:6px;color:${C.txt};font-size:12px;padding:5px 6px;width:100%;outline:none;}
+.oddin:focus-visible{border-color:${C.gold};}
+.palpites{margin-top:16px;}
+.pcards{display:flex;flex-direction:column;gap:8px;}
+.pcard{background:${C.bg2};border:1px solid ${C.greenDim};border-radius:10px;padding:11px 13px;}
+.pc-top{display:flex;justify-content:space-between;font-weight:600;font-size:13px;}
+.pc-row{display:flex;gap:16px;font-size:11.5px;color:${C.txt2};font-family:${MONO};margin-top:5px;}
+.pc-warn{display:block;font-size:10.5px;color:${C.gold};margin-top:6px;}
+.notas h2{font-family:${DISP};font-weight:600;font-size:14px;margin:0 0 8px;}
+.notas p{color:${C.txt2};font-size:12.5px;line-height:1.6;margin:0;}
+@media (max-width:640px){
+  .teams{grid-template-columns:1fr;} .vs{display:none;}
+  .bar{grid-template-columns:96px 1fr 50px 38px;}
+  .vth{display:none;}
+  .vtr{grid-template-columns:1fr 1fr;gap:6px 10px;}
+  .vmkt{grid-column:1/3;font-weight:600;color:${C.txt};}
+}
+`;
+
+
+/* ╔═══════════════════════════════════════════════════════╗
+   ║  SHELL — abas Banca / Análise                          ║
+   ╚═══════════════════════════════════════════════════════╝ */
+const CSS_SHELL = `
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+*{box-sizing:border-box;}
+::selection{background:${C.gold};color:${C.bg};}
+.app-top{max-width:1140px;margin:0 auto;padding:18px 16px 2px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+.app-brand{font-family:${DISP};font-weight:700;font-size:18px;letter-spacing:1px;display:flex;align-items:center;gap:7px;color:${C.txt};}
+.app-logo{color:${C.gold};font-size:13px;}
+.app-tabs{display:flex;gap:3px;background:${C.bg2};border:1px solid ${C.line};border-radius:10px;padding:3px;}
+.app-tab{background:transparent;border:none;color:${C.txt2};font-family:${DISP};font-weight:600;font-size:13px;padding:7px 18px;border-radius:7px;cursor:pointer;transition:background .15s,color .15s;}
+.app-tab.on{background:${C.gold};color:${C.bg};}
+.app-tab:not(.on):hover{color:${C.txt};}
+`;
+
+function AppShell(){
+  const [aba,setAba]=useState(()=>{ try{ return localStorage.getItem("bet:aba")||"banca"; }catch(e){ return "banca"; } });
+  const go=(t)=>{ setAba(t); try{ localStorage.setItem("bet:aba",t); }catch(e){} };
+  return (
+    <div style={{background:C.bg,color:C.txt,fontFamily:BODY,minHeight:"100vh"}}>
+      <style>{CSS_SHELL}</style>
+      <div className="app-top">
+        <div className="app-brand"><span className="app-logo">◆</span> BET</div>
+        <div className="app-tabs">
+          <button className={"app-tab"+(aba==="banca"?" on":"")} onClick={()=>go("banca")}>Banca</button>
+          <button className={"app-tab"+(aba==="analise"?" on":"")} onClick={()=>go("analise")}>Análise</button>
+        </div>
+      </div>
+      {aba==="banca" ? <Banca/> : <Analise/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<AppShell/>);
+</script>
 </body>
 </html>
