@@ -592,6 +592,23 @@ function analisar(lh, la){
     bttsY:btts, bttsN:1-btts, top:scores.slice(0,5), golsEsp:lh+la };
 }
 
+// média de gols por mando (casa/fora), suavizada p/ amostra pequena (shrinkage)
+function mediasVenue(jogos, emCasaWanted){
+  const PRIOR=1.3, K_OVER=4, K_VEN=3;
+  let oS=0,oC=0,oN=0, vS=0,vC=0,vN=0;
+  jogos.forEach(j=>{
+    oS+=j.gf; oC+=j.ga; oN++;
+    if(j.emCasa===emCasaWanted){ vS+=j.gf; vC+=j.ga; vN++; }
+  });
+  const overS=(oS+K_OVER*PRIOR)/(oN+K_OVER);   // geral, puxado p/ um prior
+  const overC=(oC+K_OVER*PRIOR)/(oN+K_OVER);
+  return {                                      // mando, puxado p/ o geral
+    scored:(vS+K_VEN*overS)/(vN+K_VEN),
+    conc:(vC+K_VEN*overC)/(vN+K_VEN),
+    nAll:oN, nVen:vN,
+  };
+}
+
 function Analise(){
   // tenta puxar a banca do módulo Banca (mesmo navegador)
   let bancaInit=1000;
@@ -600,7 +617,7 @@ function Analise(){
   const [inp,setInp]=useState({
     casa:"Mandante", fora:"Visitante",
     gfH:1.6, gaH:0.9, gfA:1.1, gaA:1.4,
-    ligaMedia:1.35, vantCasa:1.10,
+    ligaMedia:1.35,
   });
   const [odds,setOdds]=useState({ um:"", x:"", dois:"", ov25:"", un25:"", bttsY:"", bttsN:"" });
   const [banca,setBanca]=useState(bancaInit);
@@ -616,6 +633,9 @@ function Analise(){
   const [liga,setLiga]=useState("WC");
   const [janela,setJanela]=useState(14);
   const [jogos,setJogos]=useState([]);
+  const [histCasa,setHistCasa]=useState([]);
+  const [histFora,setHistFora]=useState([]);
+  const [h2h,setH2h]=useState([]);
   const [apiBusy,setApiBusy]=useState(false);
   const [apiMsg,setApiMsg]=useState(null); // {type:"ok"|"err"|"info", text}
 
@@ -654,50 +674,64 @@ function Analise(){
     finally{ setApiBusy(false); }
   }
 
-  // média de gols (marcados/sofridos) dos últimos jogos finalizados de um time
-  async function mediasTime(id){
+  // últimos jogos finalizados de um time (normalizado p/ exibição + cálculo)
+  async function jogosTime(id){
     const de=ymd(new Date(Date.now()-400*86400000)), ate=ymd(new Date());
     const data=await apiGet("/teams/"+id+"/matches?status=FINISHED&dateFrom="+de+"&dateTo="+ate+"&limit=10");
-    const ms=(data&&data.matches)||[];
-    let gf=0,ga=0,n=0;
-    ms.forEach(m=>{
+    const out=[];
+    ((data&&data.matches)||[]).forEach(m=>{
       const ft=m.score&&m.score.fullTime; if(!ft||ft.home==null||ft.away==null) return;
       const emCasa=m.homeTeam.id===id;
-      gf+= emCasa?ft.home:ft.away;
-      ga+= emCasa?ft.away:ft.home;
-      n++;
+      out.push({ date:m.utcDate, emCasa, gf:emCasa?ft.home:ft.away, ga:emCasa?ft.away:ft.home,
+        adv:(emCasa?m.awayTeam:m.homeTeam).name, comp:m.competition?m.competition.name:"" });
     });
-    return n ? { gf:gf/n, ga:ga/n, n } : { gf:null, ga:null, n:0 };
+    out.sort((x,y)=> x.date<y.date?1:-1);
+    return out;
   }
 
-  // ao clicar num jogo: busca a forma dos 2 times e preenche as médias
+  // confrontos diretos (head-to-head) entre os dois times do jogo
+  async function h2hJogo(matchId){
+    try{
+      const d=await apiGet("/matches/"+matchId+"/head2head?limit=10");
+      return ((d&&d.matches)||[]).map(m=>{
+        const ft=(m.score&&m.score.fullTime)||{};
+        return { date:m.utcDate, home:m.homeTeam.name, away:m.awayTeam.name,
+          gh:ft.home, ga:ft.away, comp:m.competition?m.competition.name:"" };
+      });
+    }catch(e){ return []; }
+  }
+
+  // ao clicar num jogo: busca forma recente + confrontos e preenche as médias (casa/fora)
   async function analisarJogo(j){
-    setApiBusy(true); setApiMsg({type:"info",text:"buscando forma recente dos times…"});
+    setApiBusy(true); setApiMsg({type:"info",text:"buscando forma recente e confrontos…"});
     try{
       const casa=j.homeTeam, fora=j.awayTeam;
-      const [h,a]=await Promise.all([mediasTime(casa.id), mediasTime(fora.id)]);
-      const upd={ casa:casa.name, fora:fora.name };
-      if(h.n){ upd.gfH=+h.gf.toFixed(2); upd.gaH=+h.ga.toFixed(2); }
-      if(a.n){ upd.gfA=+a.gf.toFixed(2); upd.gaA=+a.ga.toFixed(2); }
-      setInp(s=>({...s,...upd}));
+      const [jc, jf, hh] = await Promise.all([ jogosTime(casa.id), jogosTime(fora.id), h2hJogo(j.id) ]);
+      setHistCasa(jc); setHistFora(jf); setH2h(hh);
+      const mc=mediasVenue(jc, true);   // mandante jogando em casa
+      const ma=mediasVenue(jf, false);  // visitante jogando fora
+      setInp(s=>({...s,
+        casa:casa.name, fora:fora.name,
+        gfH:+mc.scored.toFixed(2), gaH:+mc.conc.toFixed(2),
+        gfA:+ma.scored.toFixed(2), gaA:+ma.conc.toFixed(2),
+      }));
       const fracos=[];
-      if(h.n<3) fracos.push(casa.name+" ("+h.n+"j)");
-      if(a.n<3) fracos.push(fora.name+" ("+a.n+"j)");
-      const resumo=casa.name+" "+h.n+"j · "+fora.name+" "+a.n+"j";
+      if(mc.nAll<3) fracos.push(casa.name+" ("+mc.nAll+"j)");
+      if(ma.nAll<3) fracos.push(fora.name+" ("+ma.nAll+"j)");
+      const resumo=casa.name+" "+mc.nAll+"j ("+mc.nVen+" casa) · "+fora.name+" "+ma.nAll+"j ("+ma.nVen+" fora)";
       setApiMsg(fracos.length
-        ? {type:"info",text:"⚠ preenchido, mas amostra pequena: "+fracos.join(", ")+". Revise os números. ("+resumo+")"}
-        : {type:"ok",text:"✓ médias preenchidas — "+resumo});
+        ? {type:"info",text:"⚠ amostra pequena: "+fracos.join(", ")+" — médias suavizadas, revise. ("+resumo+")"}
+        : {type:"ok",text:"✓ médias casa/fora preenchidas (suavizadas) — "+resumo});
     }catch(e){ setApiMsg({type:"err",text:"erro: "+e.message}); }
     finally{ setApiBusy(false); }
   }
 
   const res=useMemo(()=>{
+    // gols esperados = (ataque no mando) × (defesa do adversário no mando) ÷ média da liga.
+    // gfH/gaH = forma do mandante EM CASA; gfA/gaA = forma do visitante FORA.
     const L=num(inp.ligaMedia)||1.35;
-    const lhBase=(num(inp.gfH)*num(inp.gaA))/L;
-    const laBase=(num(inp.gfA)*num(inp.gaH))/L;
-    const hav=num(inp.vantCasa)||1;
-    const lh=Math.max(0.05, lhBase*hav);
-    const la=Math.max(0.05, laBase*(2-hav>0?(2-hav):0.9));
+    const lh=Math.max(0.05, num(inp.gfH)*num(inp.gaA)/L);
+    const la=Math.max(0.05, num(inp.gfA)*num(inp.gaH)/L);
     return { lh,la, ...analisar(lh,la) };
   },[inp]);
 
@@ -774,27 +808,26 @@ function Analise(){
         {/* entradas */}
         <section className="panel">
           <div className="phead"><h2>Dados do jogo</h2>
-            <span className="psub">médias dos últimos ~6–10 jogos</span></div>
+            <span className="psub">forma recente, separada por mando (casa/fora)</span></div>
 
           <div className="teams">
             <div className="team">
               <input className="tname" value={inp.casa} onChange={e=>up("casa",e.target.value)} />
-              <span className="thint">mandante</span>
-              <Row label="Gols marcados / jogo" v={inp.gfH} on={v=>up("gfH",v)} />
-              <Row label="Gols sofridos / jogo" v={inp.gaH} on={v=>up("gaH",v)} />
+              <span className="thint">mandante · em casa</span>
+              <Row label="Gols marcados (em casa)" v={inp.gfH} on={v=>up("gfH",v)} />
+              <Row label="Gols sofridos (em casa)" v={inp.gaH} on={v=>up("gaH",v)} />
             </div>
             <div className="vs">×</div>
             <div className="team">
               <input className="tname" value={inp.fora} onChange={e=>up("fora",e.target.value)} />
-              <span className="thint">visitante</span>
-              <Row label="Gols marcados / jogo" v={inp.gfA} on={v=>up("gfA",v)} />
-              <Row label="Gols sofridos / jogo" v={inp.gaA} on={v=>up("gaA",v)} />
+              <span className="thint">visitante · fora</span>
+              <Row label="Gols marcados (fora)" v={inp.gfA} on={v=>up("gfA",v)} />
+              <Row label="Gols sofridos (fora)" v={inp.gaA} on={v=>up("gaA",v)} />
             </div>
           </div>
 
           <div className="adv">
             <Row label="Média de gols na liga (por time)" v={inp.ligaMedia} on={v=>up("ligaMedia",v)} small />
-            <Row label="Fator vantagem de casa" v={inp.vantCasa} on={v=>up("vantCasa",v)} small step="0.05" />
           </div>
 
           <div className="lambdas">
@@ -803,6 +836,38 @@ function Analise(){
             <span>Total esperado: <b className="mono">{res.golsEsp.toFixed(2)}</b></span>
           </div>
         </section>
+
+        {/* históricos: forma recente + confrontos diretos */}
+        {(histCasa.length>0 || histFora.length>0) && (
+          <section className="panel">
+            <div className="phead"><h2>Forma recente</h2>
+              <span className="psub">últimos jogos · football-data.org</span></div>
+            <div className="formas">
+              <FormaTime nome={inp.casa} jogos={histCasa} />
+              <FormaTime nome={inp.fora} jogos={histFora} />
+            </div>
+          </section>
+        )}
+
+        {(histCasa.length>0 || histFora.length>0) && (
+          <section className="panel">
+            <div className="phead"><h2>Confrontos diretos</h2>
+              <span className="psub">{inp.casa} × {inp.fora}</span></div>
+            {h2h.length===0 ? (
+              <p className="muted" style={{fontSize:12.5}}>Sem confrontos diretos recentes na base (comum em seleções ou times que raramente se enfrentam).</p>
+            ) : (
+              <div className="h2hlist">
+                {h2h.map((m,i)=>(
+                  <div key={i} className="h2hrow">
+                    <span className="jdate">{m.date.slice(0,10).split("-").reverse().join("/")}</span>
+                    <span className="h2hteams">{m.home} <b className="mono">{m.gh==null?"–":m.gh}–{m.ga==null?"–":m.ga}</b> {m.away}</span>
+                    <span className="h2hcomp">{m.comp}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* probabilidades */}
         <section className="panel">
@@ -933,6 +998,29 @@ function Grupo({titulo,itens}){
   );
 }
 
+function FormaTime({nome, jogos}){
+  if(!jogos || !jogos.length) return (
+    <div className="forma"><div className="forma-h">{nome}</div>
+      <p className="muted" style={{fontSize:12}}>sem jogos na base.</p></div>
+  );
+  return (
+    <div className="forma">
+      <div className="forma-h">{nome} <span className="forma-sub">{jogos.length} jogos</span></div>
+      {jogos.map((g,i)=>{
+        const r = g.gf>g.ga?"v":(g.gf<g.ga?"d":"e");
+        return (
+          <div key={i} className="forma-row">
+            <span className={"resb "+r}>{r==="v"?"V":(r==="d"?"D":"E")}</span>
+            <span className="forma-loc">{g.emCasa?"casa":"fora"}</span>
+            <span className="forma-adv">{g.emCasa?"vs":"@"} {g.adv}</span>
+            <span className="forma-sc mono">{g.gf}–{g.ga}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const CSS_ANALISE = `
 .mono{font-family:${MONO};}
 .wrap{max-width:1000px;margin:0 auto;padding:16px 16px 64px;}
@@ -1016,8 +1104,25 @@ const CSS_ANALISE = `
 .pc-warn{display:block;font-size:10.5px;color:${C.gold};margin-top:6px;}
 .notas h2{font-family:${DISP};font-weight:600;font-size:14px;margin:0 0 8px;}
 .notas p{color:${C.txt2};font-size:12.5px;line-height:1.6;margin:0;}
+.formas{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.forma{background:${C.bg2};border:1px solid ${C.line};border-radius:10px;padding:11px 12px;}
+.forma-h{font-family:${DISP};font-weight:600;font-size:13px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+.forma-sub{font-family:${MONO};font-size:10px;color:${C.txt3};font-weight:400;}
+.forma-row{display:grid;grid-template-columns:auto auto 1fr auto;gap:8px;align-items:center;font-size:12px;padding:5px 0;border-top:1px solid ${C.line};}
+.resb{width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;font-family:${MONO};}
+.resb.v{background:rgba(27,209,124,0.16);color:${C.green};}
+.resb.d{background:rgba(240,69,91,0.16);color:${C.red};}
+.resb.e{background:rgba(154,165,182,0.14);color:${C.txt2};}
+.forma-loc{font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:${C.txt3};}
+.forma-adv{color:${C.txt2};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.forma-sc{font-size:12px;color:${C.txt};}
+.h2hlist{display:flex;flex-direction:column;gap:6px;}
+.h2hrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;font-size:12.5px;color:${C.txt2};background:${C.bg2};border:1px solid ${C.line};border-radius:8px;padding:8px 11px;}
+.h2hteams b{color:${C.txt};margin:0 6px;}
+.h2hcomp{font-size:10px;color:${C.txt3};white-space:nowrap;}
 @media (max-width:640px){
   .teams{grid-template-columns:1fr;} .vs{display:none;}
+  .formas{grid-template-columns:1fr;}
   .bar{grid-template-columns:96px 1fr 50px 38px;}
   .vth{display:none;}
   .vtr{grid-template-columns:1fr 1fr;gap:6px 10px;}

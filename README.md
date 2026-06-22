@@ -33,17 +33,21 @@ Registro e acompanhamento das apostas.
 ### 📊 Aba Análise (também em `analise.html`) — Análise estatística (Poisson)
 Analisador para estimar probabilidades e detectar valor.
 
-- **Modelo de Poisson** a partir das médias de gols: probabilidades de **1X2**,
-  **over/under**, **ambas marcam** e **placares prováveis**.
+- **Modelo de Poisson** com **separação por mando (casa/fora)**: usa o ataque/defesa
+  do mandante **em casa** e do visitante **fora**, com **suavização (shrinkage)** para
+  amostras pequenas — evita valores degenerados quando o time tem poucos jogos na base.
+  Calcula **1X2**, **over/under**, **ambas marcam** e **placares prováveis**.
+- **Históricos:** **forma recente** de cada time (últimos jogos, com V/E/D e placar) e
+  **confrontos diretos (H2H)** entre os dois.
 - **Detector de valor:** compara a probabilidade do modelo com a odd da casa.
 - **Stake sugerido** por **Kelly fracionado**.
 - **Jogos pela API** (`football-data.org`, header `X-Auth-Token`): escolha a
   **competição** (Copa do Mundo, Brasileirão, Premier League, Champions, Libertadores,
   La Liga, Serie A, Bundesliga, Ligue 1, etc.), clique em **Carregar jogos** para
   listar as partidas agendadas e, ao clicar num jogo, o app busca a **forma recente**
-  dos dois times e preenche as médias de gols. As chamadas passam pelo **mini-servidor
-  local** (`server.py`), que faz proxy e evita o bloqueio de CORS — veja
-  [Como rodar](#como-rodar).
+  dos dois times (e os confrontos diretos) e preenche as médias de gols. As chamadas
+  passam pelo **mini-servidor local** (`server.py`), que faz proxy e evita o bloqueio
+  de CORS — veja [Como rodar](#como-rodar).
   > Quando a amostra de jogos é pequena (ex.: início de um torneio), o app avisa para
   > você revisar os números antes de confiar.
 
