@@ -1,5 +1,6 @@
-# Segredos — chave da API-Football (nunca versionar)
+# Segredos — chaves de API (nunca versionar)
 apikey.txt
+odds_apikey.txt
 
 # Python
 __pycache__/

@@ -184,7 +184,10 @@ function Banca() {
         </div>
 
         {vazio ? (
-          <EmptyState />
+          <React.Fragment>
+            <EmptyState />
+            <FormAposta onAdd={addBet} valorUnidade={config.valorUnidade} />
+          </React.Fragment>
         ) : (
           <React.Fragment>
             <section className="bk-panel">
@@ -613,6 +616,7 @@ function Analise(){
   const [histFora,setHistFora]=useState([]);
   const [h2h,setH2h]=useState([]);
   const [bolao,setBolao]=useState([]);
+  const [confMin,setConfMin]=useState(65);
   const [apiBusy,setApiBusy]=useState(false);
   const [apiMsg,setApiMsg]=useState(null); // {type:"ok"|"err"|"info", text}
 
@@ -675,13 +679,22 @@ function Analise(){
         const lh=Math.max(0.05, sh(h.gf,h.pj)*sh(a.ga,a.pj)/L*HF);
         const la=Math.max(0.05, sh(a.gf,a.pj)*sh(h.ga,h.pj)/L/HF);
         const r=analisar(lh,la);
-        const opts=[["1",r.pH,j.homeTeam.shortName||j.homeTeam.name],["X",r.pD,"Empate"],["2",r.pA,j.awayTeam.shortName||j.awayTeam.name]];
-        opts.sort((x,y)=>y[1]-x[1]);
-        return { j, pred:opts[0], score:r.top[0] };
+        const nC=j.homeTeam.shortName||j.homeTeam.name, nF=j.awayTeam.shortName||j.awayTeam.name;
+        const cand=[
+          [nC+" vence", r.pH], [nF+" vence", r.pA],
+          [nC+" não perde (1X)", r.pH+r.pD], [nF+" não perde (X2)", r.pD+r.pA],
+          ["Tem vencedor (12)", r.pH+r.pA],
+          ["+1.5 gols", r.over[1.5]], ["-3.5 gols", r.under[3.5]],
+          ["+2.5 gols", r.over[2.5]], ["-2.5 gols", r.under[2.5]],
+          ["Ambas marcam", r.bttsY], ["Ambas não marcam", r.bttsN],
+        ];
+        cand.sort((x,y)=>y[1]-x[1]);
+        return { j, melhor:cand[0], score:r.top[0] };
       });
+      out.sort((x,y)=> x.semDados ? 1 : (y.semDados ? -1 : y.melhor[1]-x.melhor[1]));
       setBolao(out);
       const ok=out.filter(b=>!b.semDados).length;
-      setApiMsg({type:"ok",text:"✓ bolão gerado: "+ok+" de "+out.length+" jogos (base: classificação da temporada)."});
+      setApiMsg({type:"ok",text:"✓ bolão gerado: "+ok+" jogos, ordenados por probabilidade de acerto."});
     }catch(e){ setApiMsg({type:"err",text:"erro: "+e.message}); }
     finally{ setApiBusy(false); }
   }
@@ -820,29 +833,34 @@ function Analise(){
           rápido de todos. Revise antes de confiar — é só um apoio.</p>
         </section>
 
-        {/* bolão: palpites do modelo para todos os jogos */}
+        {/* bolão: palpites de alta probabilidade */}
         {bolao.length>0 && (
           <section className="panel">
-            <div className="phead"><h2>Bolão — palpites do modelo</h2>
-              <span className="psub">base: classificação da temporada</span></div>
-            <div className="boltable">
-              <div className="bolth"><span>Data</span><span>Jogo</span><span>Palpite</span><span>Prob</span><span>Placar</span></div>
-              {bolao.map((b,i)=>(
-                <div key={i} className="boltr">
-                  <span className="jdate">{new Date(b.j.utcDate).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</span>
-                  <span className="boljogo">{b.j.homeTeam.shortName||b.j.homeTeam.name} <em>×</em> {b.j.awayTeam.shortName||b.j.awayTeam.name}</span>
-                  {b.semDados
-                    ? <span className="bolpred dim" style={{gridColumn:"3 / 6"}}>sem dados na classificação</span>
-                    : (<React.Fragment>
-                        <span className={"bolpred p"+b.pred[0]} title={b.pred[2]}>{b.pred[0]} · {b.pred[2]}</span>
-                        <span className="mono">{(b.pred[1]*100).toFixed(0)}%</span>
-                        <span className="mono">{b.score.i}–{b.score.j}</span>
-                      </React.Fragment>)}
+            <div className="phead"><h2>Bolão — alta probabilidade</h2>
+              <label className="conf">conf. mín
+                <input type="number" min="50" max="95" step="5" value={confMin}
+                  onChange={e=>setConfMin(Math.max(0,Math.min(100,parseInt(e.target.value)||0)))} />%
+              </label></div>
+            {(function(){
+              const lista=bolao.filter(b=>!b.semDados && b.melhor[1]*100>=confMin);
+              if(!lista.length) return <p className="muted" style={{fontSize:12.5}}>Nenhum palpite com confiança ≥ {confMin}%. Baixe o mínimo para ver mais.</p>;
+              return (
+                <div className="boltable">
+                  <div className="bolth"><span>Data</span><span>Jogo</span><span>Palpite</span><span>Prob</span></div>
+                  {lista.map((b,i)=>(
+                    <div key={i} className="boltr">
+                      <span className="jdate">{new Date(b.j.utcDate).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</span>
+                      <span className="boljogo">{b.j.homeTeam.shortName||b.j.homeTeam.name} <em>×</em> {b.j.awayTeam.shortName||b.j.awayTeam.name}</span>
+                      <span className="bolpred" title={b.melhor[0]}>{b.melhor[0]}</span>
+                      <span className="mono bolprob">{(b.melhor[1]*100).toFixed(0)}%</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <p className="apihint">Palpite = resultado mais provável pelo modelo (Poisson sobre os gols da
-            temporada, com leve vantagem de casa). 1 = mandante, X = empate, 2 = visitante. Guia, não garantia.</p>
+              );
+            })()}
+            <p className="apihint">Por jogo, o palpite com <b>maior probabilidade de acerto</b> pelo modelo
+            (resultado, dupla chance, over/under, ambas), ordenado por confiança. Prob alta = odd baixa: é
+            taxa de acerto, não necessariamente valor. Guia, não garantia.</p>
           </section>
         )}
 
@@ -1088,16 +1106,15 @@ const CSS_ANALISE = `
 .apibtn.ghost:hover{background:rgba(231,169,60,0.10);filter:none;}
 .apibtn.ghost:disabled{opacity:.5;}
 .boltable{border:1px solid ${C.line};border-radius:10px;overflow:hidden;margin-bottom:4px;}
-.bolth,.boltr{display:grid;grid-template-columns:42px minmax(0,1.4fr) minmax(0,1.2fr) 44px 50px;gap:10px;align-items:center;padding:8px 11px;}
+.bolth,.boltr{display:grid;grid-template-columns:42px minmax(0,1.3fr) minmax(0,1.5fr) 48px;gap:10px;align-items:center;padding:8px 11px;}
 .bolth{background:${C.bg2};font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${C.txt3};}
 .boltr{border-top:1px solid ${C.line};font-size:12.5px;}
 .boljogo{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .boljogo em{font-style:normal;color:${C.txt3};font-weight:400;margin:0 4px;}
-.bolpred{font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.bolpred.p1{color:${C.green};}
-.bolpred.pX{color:${C.txt2};}
-.bolpred.p2{color:${C.blue};}
-.bolpred.dim{color:${C.txt3};font-weight:400;}
+.bolpred{font-size:12px;color:${C.txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bolprob{color:${C.gold};font-weight:600;text-align:right;}
+.conf{font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:${C.txt3};display:flex;align-items:center;gap:6px;}
+.conf input{width:48px;background:${C.bg2};border:1px solid ${C.line2};border-radius:6px;color:${C.txt};font-family:${MONO};font-size:12px;padding:4px 6px;text-align:center;}
 .apibtn{background:${C.gold};color:${C.bg};border:none;border-radius:9px;font-family:${DISP};font-weight:600;font-size:13.5px;padding:10px 16px;cursor:pointer;transition:filter .15s;}
 .apibtn:hover{filter:brightness(1.08);}
 .apibtn:disabled{opacity:.55;cursor:default;}
