@@ -64,27 +64,6 @@ function lucroDe(b) {
   return 0;
 }
 
-const EXEMPLO = () => {
-  const base = [
-    ["Futebol", "Flamengo x Palmeiras", "Mais de 2.5 gols", "Bet365", 1.85, 50, "green", -18],
-    ["Futebol", "Real Madrid x Barcelona", "Ambas marcam", "Betano", 1.72, 50, "red", -16],
-    ["Basquete", "Lakers x Celtics", "Lakers +5.5", "Betano", 1.90, 40, "green", -15],
-    ["Tênis", "Alcaraz x Sinner", "Alcaraz vence", "Bet365", 2.10, 30, "green", -13],
-    ["Futebol", "Corinthians x São Paulo", "Resultado: Empate", "Superbet", 3.20, 30, "red", -11],
-    ["MMA", "Pereira x Ankalaev", "Pereira por KO", "Betano", 2.75, 25, "red", -9],
-    ["Futebol", "Man City x Liverpool", "Menos de 3.5 gols", "Bet365", 1.65, 60, "green", -7],
-    ["eSports", "FURIA x LOUD", "FURIA vence mapa 1", "Betano", 1.95, 30, "green", -5],
-    ["Basquete", "Warriors x Nuggets", "Mais de 220.5 pts", "Superbet", 1.88, 40, "red", -3],
-    ["Futebol", "Inter x Grêmio", "Inter vence", "Bet365", 2.30, 35, "green", -1],
-    ["Tênis", "Sabalenka x Gauff", "Gauff +3.5 games", "Betano", 1.80, 30, "pendente", 0],
-    ["Futebol", "Bayern x Dortmund", "Mais de 2.5 gols", "Betano", 1.70, 50, "pendente", 0],
-  ];
-  return base.map(([esporte, evento, mercado, casa, odd, stake, status, dOff]) => ({
-    id: uid(), date: new Date(Date.now() + dOff * 86400000).toISOString().slice(0, 10),
-    esporte, evento, mercado, casa, odd, stake, status,
-  }));
-};
-
 function Banca() {
   const [bets, setBets] = useState(() => LS.load("banca:bets", []));
   const [config, setConfig] = useState(() => LS.load("banca:config", { bancaInicial: 1000, valorUnidade: 25 }));
@@ -97,7 +76,6 @@ function Banca() {
   const addBet = (b) => saveBets([{ ...b, id: uid() }, ...bets]);
   const setStatus = (id, status) => saveBets(bets.map((b) => (b.id === id ? { ...b, status } : b)));
   const delBet = (id) => saveBets(bets.filter((b) => b.id !== id));
-  const carregarExemplo = () => saveBets(EXEMPLO());
   const limparTudo = () => { if (confirm("Apagar todas as apostas? Esta ação não pode ser desfeita.")) saveBets([]); };
 
   const stats = useMemo(() => {
@@ -206,7 +184,7 @@ function Banca() {
         </div>
 
         {vazio ? (
-          <EmptyState onExemplo={carregarExemplo} />
+          <EmptyState />
         ) : (
           <React.Fragment>
             <section className="bk-panel">
@@ -434,14 +412,12 @@ function Num({ lbl, v, sub, cor }) {
     </div>
   );
 }
-function EmptyState({ onExemplo }) {
+function EmptyState() {
   return (
     <section className="bk-empty">
       <div className="bk-empty-icon">◆</div>
       <h2>Sua banca começa aqui</h2>
-      <p>Ajuste a banca inicial e o valor da unidade acima, registre suas apostas e acompanhe ROI, yield e a evolução do seu lucro.</p>
-      <button className="bk-add" style={{ maxWidth: 280 }} onClick={onExemplo}>Carregar dados de exemplo</button>
-      <span className="bk-empty-note">Você pode apagar os exemplos a qualquer momento.</span>
+      <p>Ajuste a banca inicial e o valor da unidade acima e registre suas apostas para acompanhar ROI, yield e a evolução do seu lucro.</p>
     </section>
   );
 }
