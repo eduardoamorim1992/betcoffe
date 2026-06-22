@@ -39,6 +39,9 @@ Analisador para estimar probabilidades e detectar valor.
   Calcula **1X2**, **over/under**, **ambas marcam** e **placares prováveis**.
 - **Históricos:** **forma recente** de cada time (últimos jogos, com V/E/D e placar) e
   **confrontos diretos (H2H)** entre os dois.
+- **Bolão (palpites em lote):** o botão **Gerar bolão** calcula, de uma vez, o resultado
+  mais provável (**1 / X / 2** + placar) de todos os jogos carregados de uma competição,
+  usando a **classificação da temporada** (1 requisição, eficiente).
 - **Detector de valor:** compara a probabilidade do modelo com a odd da casa.
 - **Stake sugerido** por **Kelly fracionado**.
 - **Jogos pela API** (`football-data.org`, header `X-Auth-Token`): escolha a

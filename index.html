@@ -612,6 +612,7 @@ function Analise(){
   const [histCasa,setHistCasa]=useState([]);
   const [histFora,setHistFora]=useState([]);
   const [h2h,setH2h]=useState([]);
+  const [bolao,setBolao]=useState([]);
   const [apiBusy,setApiBusy]=useState(false);
   const [apiMsg,setApiMsg]=useState(null); // {type:"ok"|"err"|"info", text}
 
@@ -646,6 +647,41 @@ function Analise(){
         .sort((a,b)=> a.utcDate<b.utcDate?-1:1);
       setJogos(ms);
       setApiMsg(ms.length ? null : {type:"info",text:"nenhum jogo agendado nesse período para essa competição."});
+    }catch(e){ setApiMsg({type:"err",text:"erro: "+e.message}); }
+    finally{ setApiBusy(false); }
+  }
+
+  // gera palpites do modelo para todos os jogos carregados (base: classificação da temporada)
+  async function gerarBolao(){
+    if(!jogos.length){ setApiMsg({type:"err",text:"clique em Carregar jogos primeiro."}); return; }
+    setApiBusy(true); setApiMsg({type:"info",text:"gerando bolão (classificação + modelo)…"}); setBolao([]);
+    try{
+      const data=await apiGet("/competitions/"+liga+"/standings");
+      const mapa={}; let somaG=0, somaJ=0;
+      ((data&&data.standings)||[]).forEach(tb=>{
+        if(tb.type && tb.type!=="TOTAL") return;
+        (tb.table||[]).forEach(row=>{
+          if(!row.team) return;
+          mapa[row.team.id]={ gf:row.goalsFor||0, ga:row.goalsAgainst||0, pj:row.playedGames||0 };
+          somaG+=row.goalsFor||0; somaJ+=row.playedGames||0;
+        });
+      });
+      const L=somaJ>0 ? somaG/somaJ : 1.35;
+      const sh=(v,pj)=>(v + 3*L)/(pj + 3);   // suaviza p/ poucos jogos
+      const HF=1.10;
+      const out=jogos.map(j=>{
+        const h=mapa[j.homeTeam.id], a=mapa[j.awayTeam.id];
+        if(!h||!a) return { j, semDados:true };
+        const lh=Math.max(0.05, sh(h.gf,h.pj)*sh(a.ga,a.pj)/L*HF);
+        const la=Math.max(0.05, sh(a.gf,a.pj)*sh(h.ga,h.pj)/L/HF);
+        const r=analisar(lh,la);
+        const opts=[["1",r.pH,j.homeTeam.shortName||j.homeTeam.name],["X",r.pD,"Empate"],["2",r.pA,j.awayTeam.shortName||j.awayTeam.name]];
+        opts.sort((x,y)=>y[1]-x[1]);
+        return { j, pred:opts[0], score:r.top[0] };
+      });
+      setBolao(out);
+      const ok=out.filter(b=>!b.semDados).length;
+      setApiMsg({type:"ok",text:"✓ bolão gerado: "+ok+" de "+out.length+" jogos (base: classificação da temporada)."});
     }catch(e){ setApiMsg({type:"err",text:"erro: "+e.message}); }
     finally{ setApiBusy(false); }
   }
@@ -761,6 +797,8 @@ function Analise(){
                 onChange={e=>setJanela(Math.max(1,Math.min(60,parseInt(e.target.value)||14)))} /></label>
             <button className="apibtn" onClick={carregarJogos} disabled={apiBusy}>
               {apiBusy ? "…" : "Carregar jogos"}</button>
+            <button className="apibtn ghost" onClick={gerarBolao} disabled={apiBusy||!jogos.length}>
+              Gerar bolão</button>
           </div>
 
           {jogos.length>0 && (
@@ -778,8 +816,35 @@ function Analise(){
           {apiMsg && <div className={"apimsg "+apiMsg.type}>{apiMsg.text}</div>}
 
           <p className="apihint">Escolha a competição e clique em <b>Carregar jogos</b>; depois clique num jogo
-          para preencher as médias (forma recente dos times). Revise antes de confiar — é só um apoio.</p>
+          para preencher as médias (forma recente dos times), ou use <b>Gerar bolão</b> para um palpite
+          rápido de todos. Revise antes de confiar — é só um apoio.</p>
         </section>
+
+        {/* bolão: palpites do modelo para todos os jogos */}
+        {bolao.length>0 && (
+          <section className="panel">
+            <div className="phead"><h2>Bolão — palpites do modelo</h2>
+              <span className="psub">base: classificação da temporada</span></div>
+            <div className="boltable">
+              <div className="bolth"><span>Data</span><span>Jogo</span><span>Palpite</span><span>Prob</span><span>Placar</span></div>
+              {bolao.map((b,i)=>(
+                <div key={i} className="boltr">
+                  <span className="jdate">{new Date(b.j.utcDate).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</span>
+                  <span className="boljogo">{b.j.homeTeam.shortName||b.j.homeTeam.name} <em>×</em> {b.j.awayTeam.shortName||b.j.awayTeam.name}</span>
+                  {b.semDados
+                    ? <span className="bolpred dim" style={{gridColumn:"3 / 6"}}>sem dados na classificação</span>
+                    : (<React.Fragment>
+                        <span className={"bolpred p"+b.pred[0]} title={b.pred[2]}>{b.pred[0]} · {b.pred[2]}</span>
+                        <span className="mono">{(b.pred[1]*100).toFixed(0)}%</span>
+                        <span className="mono">{b.score.i}–{b.score.j}</span>
+                      </React.Fragment>)}
+                </div>
+              ))}
+            </div>
+            <p className="apihint">Palpite = resultado mais provável pelo modelo (Poisson sobre os gols da
+            temporada, com leve vantagem de casa). 1 = mandante, X = empate, 2 = visitante. Guia, não garantia.</p>
+          </section>
+        )}
 
         {/* entradas */}
         <section className="panel">
@@ -1019,6 +1084,20 @@ const CSS_ANALISE = `
 .jteams{font-weight:600;}
 .jteams em{font-style:normal;color:${C.txt3};font-weight:400;margin:0 5px;}
 .jgo{font-family:${MONO};font-size:11px;color:${C.gold};white-space:nowrap;}
+.apibtn.ghost{background:transparent;color:${C.gold};border:1px solid ${C.goldDim};}
+.apibtn.ghost:hover{background:rgba(231,169,60,0.10);filter:none;}
+.apibtn.ghost:disabled{opacity:.5;}
+.boltable{border:1px solid ${C.line};border-radius:10px;overflow:hidden;margin-bottom:4px;}
+.bolth,.boltr{display:grid;grid-template-columns:42px minmax(0,1.4fr) minmax(0,1.2fr) 44px 50px;gap:10px;align-items:center;padding:8px 11px;}
+.bolth{background:${C.bg2};font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${C.txt3};}
+.boltr{border-top:1px solid ${C.line};font-size:12.5px;}
+.boljogo{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.boljogo em{font-style:normal;color:${C.txt3};font-weight:400;margin:0 4px;}
+.bolpred{font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bolpred.p1{color:${C.green};}
+.bolpred.pX{color:${C.txt2};}
+.bolpred.p2{color:${C.blue};}
+.bolpred.dim{color:${C.txt3};font-weight:400;}
 .apibtn{background:${C.gold};color:${C.bg};border:none;border-radius:9px;font-family:${DISP};font-weight:600;font-size:13.5px;padding:10px 16px;cursor:pointer;transition:filter .15s;}
 .apibtn:hover{filter:brightness(1.08);}
 .apibtn:disabled{opacity:.55;cursor:default;}
