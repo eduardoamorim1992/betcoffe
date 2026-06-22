@@ -37,11 +37,15 @@ Analisador para estimar probabilidades e detectar valor.
   **over/under**, **ambas marcam** e **placares prováveis**.
 - **Detector de valor:** compara a probabilidade do modelo com a odd da casa.
 - **Stake sugerido** por **Kelly fracionado**.
-- **Integração com a API-Football** (`api-sports.io`, header `x-apisports-key`):
-  busca os times pelo nome e usa os últimos jogos para preencher as médias de gols
-  automaticamente. A chave da API é salva no `localStorage`. As chamadas passam pelo
-  **mini-servidor local** (`server.py`), que faz proxy e evita o bloqueio de CORS do
-  navegador — veja [Como rodar](#como-rodar).
+- **Jogos pela API** (`football-data.org`, header `X-Auth-Token`): escolha a
+  **competição** (Copa do Mundo, Brasileirão, Premier League, Champions, Libertadores,
+  La Liga, Serie A, Bundesliga, Ligue 1, etc.), clique em **Carregar jogos** para
+  listar as partidas agendadas e, ao clicar num jogo, o app busca a **forma recente**
+  dos dois times e preenche as médias de gols. As chamadas passam pelo **mini-servidor
+  local** (`server.py`), que faz proxy e evita o bloqueio de CORS — veja
+  [Como rodar](#como-rodar).
+  > Quando a amostra de jogos é pequena (ex.: início de um torneio), o app avisa para
+  > você revisar os números antes de confiar.
 
 ---
 
@@ -66,24 +70,27 @@ python server.py 8080       # ou em outra porta
 ```
 
 Depois abra **http://localhost:8000/** no navegador. Nesse modo a página chama
-`/api/...`, que o `server.py` repassa para `https://v3.football.api-sports.io/...`
-com a chave no header certo.
+`/api/...`, que o `server.py` repassa para `https://api.football-data.org/v4/...`
+com o token no header `X-Auth-Token`.
 
 > **Internet:** é necessária no **primeiro carregamento** de cada página para baixar
 > as bibliotecas via CDN (React, ReactDOM, Recharts, Babel). Depois disso o app
-> funciona mesmo offline; só a **busca de jogos na API-Football** exige conexão.
+> funciona mesmo offline; só a **busca de jogos na API** exige conexão.
 
-### Configurar a chave da API-Football
+### Configurar o token da API (football-data.org)
 
-1. Crie uma conta em [api-sports.io](https://www.api-sports.io/) e copie sua chave.
-2. Suba o `server.py` e abra `http://localhost:8000/` (aba **Análise**).
-3. No painel **Preencher pela API-Football**, cole a chave (fica salva no
-   `localStorage`), digite os nomes dos times e clique em **Buscar médias**.
+A API usada é a **football-data.org** (o plano free dela dá temporada atual + jogos
+recentes; cobre ~12 competições grandes e tem limite de **10 req/min**).
 
-A chave pode também ser fornecida ao servidor sem digitá-la na página, por:
+1. Registre-se grátis em [football-data.org](https://www.football-data.org/client/register)
+   e copie o **API token** que enviam por e-mail.
+2. Cole o token no arquivo **`apikey.txt`** (na 1ª linha que não for comentário). O
+   `server.py` lê de lá automaticamente — não precisa digitar na página.
+3. Suba o `server.py`, abra `http://localhost:8000/` (aba **Análise**) → painel
+   **Jogos pela API** → escolha a competição → **Carregar jogos** → clique num jogo.
 
-- variável de ambiente `APISPORTS_KEY`, ou
-- um arquivo `apikey.txt` na pasta (uma linha com a chave — já está no `.gitignore`).
+O token também pode vir da variável de ambiente `FOOTBALL_DATA_TOKEN` (alternativa
+ao `apikey.txt`). O `apikey.txt` está no `.gitignore`, então não vai para o GitHub.
 
 ---
 
@@ -94,8 +101,8 @@ Bet coffe/
 ├── index.html      # APP ÚNICO: abas Banca + Análise (use este)
 ├── banca.html      # versão standalone da Banca (backup)
 ├── analise.html    # versão standalone da Análise (backup)
-├── server.py       # mini-servidor: serve os HTML + proxy da API-Football
-├── apikey.txt      # (opcional) chave da API — ignorado pelo git
+├── server.py       # mini-servidor: serve os HTML + proxy da football-data.org
+├── apikey.txt      # token da football-data.org — ignorado pelo git
 ├── .gitignore
 └── README.md       # este arquivo
 ```
@@ -107,7 +114,7 @@ Bet coffe/
 - **React 18** + **ReactDOM** (UMD via CDN)
 - **Babel Standalone** (transpila JSX no navegador)
 - **Recharts** (gráficos — usado no módulo Banca)
-- **API-Football** (api-sports.io — usado no módulo Análise)
+- **football-data.org** (API de futebol — usada no módulo Análise)
 - **Python 3** (biblioteca padrão) — `server.py`, serve os arquivos e faz proxy da API
 - Persistência: **`localStorage`**
 

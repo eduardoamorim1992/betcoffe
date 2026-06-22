@@ -31,7 +31,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 
-UPSTREAM = "https://v3.football.api-sports.io"
+UPSTREAM = "https://api.football-data.org/v4"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -55,7 +55,7 @@ class Handler(SimpleHTTPRequestHandler):
     # ---------- CORS em todas as respostas ----------
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "x-apisports-key, Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "X-Auth-Token, x-apisports-key, Content-Type")
         self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
 
     def end_headers(self):
@@ -81,11 +81,11 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def resolve_key(self):
-        k = self.headers.get("x-apisports-key")
+        k = self.headers.get("X-Auth-Token") or self.headers.get("x-apisports-key")
         if k and k.strip():
             return k.strip()
-        k = os.environ.get("APISPORTS_KEY", "")
-        if k.strip():
+        k = os.environ.get("FOOTBALL_DATA_TOKEN") or os.environ.get("APISPORTS_KEY", "")
+        if k and k.strip():
             return k.strip()
         return load_key_from_file()
 
@@ -94,16 +94,16 @@ class Handler(SimpleHTTPRequestHandler):
         key = self.resolve_key()
         if not key:
             return self._send_json(400, {"errors": {
-                "key": "Chave da API ausente. Informe na pagina, ou use APISPORTS_KEY / apikey.txt."
+                "key": "Token da API ausente. Informe na pagina, ou use FOOTBALL_DATA_TOKEN / apikey.txt."
             }})
 
-        rest = self.path[len("/api/"):]          # ex.: teams?search=Palmeiras
+        rest = self.path[len("/api/"):]          # ex.: competitions/BSA/matches
         parts = urlsplit(rest)
         url = UPSTREAM + "/" + parts.path
         if parts.query:
             url += "?" + parts.query
 
-        req = Request(url, headers={"x-apisports-key": key, "Accept": "application/json"})
+        req = Request(url, headers={"X-Auth-Token": key, "Accept": "application/json"})
         try:
             with urlopen(req, timeout=20) as r:
                 data = r.read()

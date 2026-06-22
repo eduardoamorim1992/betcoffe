@@ -606,10 +606,16 @@ function Analise(){
   const [banca,setBanca]=useState(bancaInit);
   const [kFrac,setKFrac]=useState(0.25);
 
-  // ── API-Football (via proxy local) ──
-  const [apiKey,setApiKey]=useState(()=>{ try{ return localStorage.getItem("apifootball:key")||""; }catch(e){ return ""; } });
-  const [busca,setBusca]=useState({ casa:"", fora:"" });
-  const [lastN,setLastN]=useState(10);
+  // ── football-data.org (via proxy local) ──
+  const LIGAS = [
+    ["WC","Copa do Mundo"], ["CL","Champions League"], ["CLI","Libertadores"],
+    ["BSA","Brasileirão"], ["PL","Premier League"], ["PD","La Liga"],
+    ["SA","Serie A (ITA)"], ["BL1","Bundesliga"], ["FL1","Ligue 1"],
+    ["PPL","Primeira Liga"], ["DED","Eredivisie"], ["ELC","Championship"], ["EC","Eurocopa"],
+  ];
+  const [liga,setLiga]=useState("WC");
+  const [janela,setJanela]=useState(14);
+  const [jogos,setJogos]=useState([]);
   const [apiBusy,setApiBusy]=useState(false);
   const [apiMsg,setApiMsg]=useState(null); // {type:"ok"|"err"|"info", text}
 
@@ -617,70 +623,72 @@ function Analise(){
   const upOdd=(k,v)=>setOdds(s=>({...s,[k]:v}));
   const num=(v)=>{ const n=parseFloat(v); return isFinite(n)?n:0; };
 
-  const saveKey=(v)=>{ setApiKey(v); try{ localStorage.setItem("apifootball:key",v); }catch(e){} };
-
   async function apiGet(path){
-    const headers={};
-    if(apiKey) headers["x-apisports-key"]=apiKey;
     let r;
-    try{ r=await fetch(API_BASE+path,{headers}); }
+    try{ r=await fetch(API_BASE+path); }
     catch(e){ throw new Error("não consegui falar com o proxy local. O server.py está rodando?"); }
     let j={};
     try{ j=await r.json(); }catch(e){}
     if(!r.ok){
-      const det=j&&j.errors ? (typeof j.errors==="string"?j.errors:JSON.stringify(j.errors)) : ("HTTP "+r.status);
+      if(r.status===429) throw new Error("limite de requisições (free = 10/min). Espere ~1 min e tente de novo.");
+      const det = (j && (j.message || (j.errors && JSON.stringify(j.errors)))) || ("HTTP "+r.status);
       throw new Error(det);
     }
     return j;
   }
 
-  // busca o time pelo nome e calcula médias dos últimos N jogos finalizados
-  async function statsTime(nome){
-    const ts=await apiGet("/teams?search="+encodeURIComponent(nome));
-    const arr=(ts&&ts.response)||[];
-    if(!arr.length) throw new Error('time não encontrado: "'+nome+'"');
-    const team=arr[0].team;
-    const fx=await apiGet("/fixtures?team="+team.id+"&last="+lastN);
-    const games=((fx&&fx.response)||[]).filter(g=>{
-      const st=g.fixture&&g.fixture.status&&g.fixture.status.short;
-      return st==="FT"||st==="AET"||st==="PEN";
-    });
-    if(!games.length) throw new Error("sem jogos finalizados para "+team.name);
-    let gf=0,ga=0;
-    games.forEach(g=>{
-      const emCasa=g.teams.home.id===team.id;
-      const gh=(g.goals.home==null?0:g.goals.home);
-      const gv=(g.goals.away==null?0:g.goals.away);
-      gf+= emCasa?gh:gv;
-      ga+= emCasa?gv:gh;
-    });
-    const n=games.length;
-    return { name:team.name, gf:gf/n, ga:ga/n, n };
+  const ymd=(d)=>d.toISOString().slice(0,10);
+
+  // lista os jogos agendados da competição escolhida (próximos N dias)
+  async function carregarJogos(){
+    setApiBusy(true); setApiMsg({type:"info",text:"carregando jogos…"}); setJogos([]);
+    try{
+      const de=ymd(new Date()), ate=ymd(new Date(Date.now()+janela*86400000));
+      const data=await apiGet("/competitions/"+liga+"/matches?dateFrom="+de+"&dateTo="+ate);
+      const ms=((data&&data.matches)||[])
+        .filter(m=>["SCHEDULED","TIMED","IN_PLAY","PAUSED"].indexOf(m.status)>-1)
+        .sort((a,b)=> a.utcDate<b.utcDate?-1:1);
+      setJogos(ms);
+      setApiMsg(ms.length ? null : {type:"info",text:"nenhum jogo agendado nesse período para essa competição."});
+    }catch(e){ setApiMsg({type:"err",text:"erro: "+e.message}); }
+    finally{ setApiBusy(false); }
   }
 
-  async function buscarMedias(){
-    if(!apiKey.trim()){ setApiMsg({type:"err",text:"informe a chave da API-Football."}); return; }
-    if(!busca.casa.trim() && !busca.fora.trim()){ setApiMsg({type:"err",text:"digite o nome de pelo menos um time."}); return; }
-    setApiBusy(true); setApiMsg({type:"info",text:"buscando na API-Football…"});
+  // média de gols (marcados/sofridos) dos últimos jogos finalizados de um time
+  async function mediasTime(id){
+    const de=ymd(new Date(Date.now()-400*86400000)), ate=ymd(new Date());
+    const data=await apiGet("/teams/"+id+"/matches?status=FINISHED&dateFrom="+de+"&dateTo="+ate+"&limit=10");
+    const ms=(data&&data.matches)||[];
+    let gf=0,ga=0,n=0;
+    ms.forEach(m=>{
+      const ft=m.score&&m.score.fullTime; if(!ft||ft.home==null||ft.away==null) return;
+      const emCasa=m.homeTeam.id===id;
+      gf+= emCasa?ft.home:ft.away;
+      ga+= emCasa?ft.away:ft.home;
+      n++;
+    });
+    return n ? { gf:gf/n, ga:ga/n, n } : { gf:null, ga:null, n:0 };
+  }
+
+  // ao clicar num jogo: busca a forma dos 2 times e preenche as médias
+  async function analisarJogo(j){
+    setApiBusy(true); setApiMsg({type:"info",text:"buscando forma recente dos times…"});
     try{
-      const upd={}; const partes=[];
-      if(busca.casa.trim()){
-        const h=await statsTime(busca.casa.trim());
-        upd.casa=h.name; upd.gfH=+h.gf.toFixed(2); upd.gaH=+h.ga.toFixed(2);
-        partes.push(h.name+": "+h.n+"j · "+h.gf.toFixed(2)+" mar / "+h.ga.toFixed(2)+" sof");
-      }
-      if(busca.fora.trim()){
-        const a=await statsTime(busca.fora.trim());
-        upd.fora=a.name; upd.gfA=+a.gf.toFixed(2); upd.gaA=+a.ga.toFixed(2);
-        partes.push(a.name+": "+a.n+"j · "+a.gf.toFixed(2)+" mar / "+a.ga.toFixed(2)+" sof");
-      }
+      const casa=j.homeTeam, fora=j.awayTeam;
+      const [h,a]=await Promise.all([mediasTime(casa.id), mediasTime(fora.id)]);
+      const upd={ casa:casa.name, fora:fora.name };
+      if(h.n){ upd.gfH=+h.gf.toFixed(2); upd.gaH=+h.ga.toFixed(2); }
+      if(a.n){ upd.gfA=+a.gf.toFixed(2); upd.gaA=+a.ga.toFixed(2); }
       setInp(s=>({...s,...upd}));
-      setApiMsg({type:"ok",text:"✓ "+partes.join("   ·   ")});
-    }catch(e){
-      setApiMsg({type:"err",text:"erro: "+e.message});
-    }finally{
-      setApiBusy(false);
-    }
+      const fracos=[];
+      if(h.n<3) fracos.push(casa.name+" ("+h.n+"j)");
+      if(a.n<3) fracos.push(fora.name+" ("+a.n+"j)");
+      const resumo=casa.name+" "+h.n+"j · "+fora.name+" "+a.n+"j";
+      setApiMsg(fracos.length
+        ? {type:"info",text:"⚠ preenchido, mas amostra pequena: "+fracos.join(", ")+". Revise os números. ("+resumo+")"}
+        : {type:"ok",text:"✓ médias preenchidas — "+resumo});
+    }catch(e){ setApiMsg({type:"err",text:"erro: "+e.message}); }
+    finally{ setApiBusy(false); }
   }
 
   const res=useMemo(()=>{
@@ -728,38 +736,39 @@ function Analise(){
           sua estimativa é melhor que a do mercado — o que é raro. <b>Não é garantia de lucro.</b>
         </div>
 
-        {/* preencher pela API-Football */}
+        {/* jogos pela API (football-data.org) */}
         <section className="panel api">
-          <div className="phead"><h2>Preencher pela API-Football</h2>
-            <span className="psub">requer o mini-servidor local (server.py)</span></div>
-
-          <label className="row small" style={{marginBottom:12}}>
-            <span className="rlbl">Chave x-apisports-key</span>
-            <input type="password" autoComplete="off" placeholder="cole sua chave da API-Football"
-              value={apiKey} onChange={e=>saveKey(e.target.value)} />
-          </label>
+          <div className="phead"><h2>Jogos pela API</h2>
+            <span className="psub">football-data.org · requer o server.py rodando</span></div>
 
           <div className="apirow">
-            <label className="row small"><span className="rlbl">Time mandante (busca)</span>
-              <input type="text" placeholder="ex.: Palmeiras" value={busca.casa}
-                onChange={e=>setBusca(s=>({...s,casa:e.target.value}))}
-                onKeyDown={e=>{ if(e.key==="Enter") buscarMedias(); }} /></label>
-            <label className="row small"><span className="rlbl">Time visitante (busca)</span>
-              <input type="text" placeholder="ex.: Flamengo" value={busca.fora}
-                onChange={e=>setBusca(s=>({...s,fora:e.target.value}))}
-                onKeyDown={e=>{ if(e.key==="Enter") buscarMedias(); }} /></label>
-            <label className="row small lastn"><span className="rlbl">Últimos jogos</span>
-              <input type="number" min="3" max="30" value={lastN}
-                onChange={e=>setLastN(Math.max(1,Math.min(30,parseInt(e.target.value)||10)))} /></label>
+            <label className="row small"><span className="rlbl">Competição</span>
+              <select value={liga} onChange={e=>setLiga(e.target.value)}>
+                {LIGAS.map(([c,n])=> <option key={c} value={c}>{n}</option>)}
+              </select></label>
+            <label className="row small lastn"><span className="rlbl">Próximos (dias)</span>
+              <input type="number" min="1" max="60" value={janela}
+                onChange={e=>setJanela(Math.max(1,Math.min(60,parseInt(e.target.value)||14)))} /></label>
+            <button className="apibtn" onClick={carregarJogos} disabled={apiBusy}>
+              {apiBusy ? "…" : "Carregar jogos"}</button>
           </div>
 
-          <button className="apibtn" onClick={buscarMedias} disabled={apiBusy}>
-            {apiBusy ? "buscando…" : "Buscar médias e preencher"}</button>
+          {jogos.length>0 && (
+            <div className="jlist">
+              {jogos.map(j=>(
+                <button key={j.id} className="jitem" onClick={()=>analisarJogo(j)} disabled={apiBusy}>
+                  <span className="jdate">{new Date(j.utcDate).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</span>
+                  <span className="jteams">{j.homeTeam.shortName||j.homeTeam.name} <em>×</em> {j.awayTeam.shortName||j.awayTeam.name}</span>
+                  <span className="jgo">analisar →</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {apiMsg && <div className={"apimsg "+apiMsg.type}>{apiMsg.text}</div>}
 
-          <p className="apihint">As médias preenchem os campos de <b>Dados do jogo</b> abaixo (gols marcados/sofridos
-          dos últimos jogos). Revise antes de confiar — o modelo continua sendo só um apoio.</p>
+          <p className="apihint">Escolha a competição e clique em <b>Carregar jogos</b>; depois clique num jogo
+          para preencher as médias (forma recente dos times). Revise antes de confiar — é só um apoio.</p>
         </section>
 
         {/* entradas */}
@@ -936,8 +945,16 @@ const CSS_ANALISE = `
 .apirow{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
 .apirow .row{flex:1;min-width:150px;}
 .apirow .lastn{flex:0 0 120px;min-width:90px;}
-.api input[type=password],.api input[type=text],.api input[type=number]{background:${C.bg2};border:1px solid ${C.line2};border-radius:8px;color:${C.txt};font-size:14px;padding:8px 10px;outline:none;width:100%;}
-.api input:focus-visible{border-color:${C.gold};}
+.api input[type=number],.api select{background:${C.bg2};border:1px solid ${C.line2};border-radius:8px;color:${C.txt};font-size:14px;padding:8px 10px;outline:none;width:100%;}
+.api input:focus-visible,.api select:focus-visible{border-color:${C.gold};}
+.jlist{display:flex;flex-direction:column;gap:6px;margin:2px 0 12px;max-height:340px;overflow:auto;}
+.jitem{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;text-align:left;background:${C.bg2};border:1px solid ${C.line};border-radius:9px;padding:9px 12px;cursor:pointer;color:${C.txt};font-family:${BODY};font-size:13px;transition:border-color .15s,background .15s;}
+.jitem:hover{border-color:${C.gold};background:${C.cardHi};}
+.jitem:disabled{opacity:.5;cursor:default;}
+.jdate{font-family:${MONO};font-size:11px;color:${C.txt3};white-space:nowrap;}
+.jteams{font-weight:600;}
+.jteams em{font-style:normal;color:${C.txt3};font-weight:400;margin:0 5px;}
+.jgo{font-family:${MONO};font-size:11px;color:${C.gold};white-space:nowrap;}
 .apibtn{background:${C.gold};color:${C.bg};border:none;border-radius:9px;font-family:${DISP};font-weight:600;font-size:13.5px;padding:10px 16px;cursor:pointer;transition:filter .15s;}
 .apibtn:hover{filter:brightness(1.08);}
 .apibtn:disabled{opacity:.55;cursor:default;}
